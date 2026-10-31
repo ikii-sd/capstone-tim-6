@@ -2,7 +2,7 @@
 
     python models/<nim>/run.py --seed 1 [--final]
 """
-   # Model milik 122450048 (David Boby C. Nainggolan)
+   # Model milik 122450048 (David Boby C. Nainggolan)___
 from __future__ import annotations
 
 import argparse
