@@ -1,0 +1,41 @@
+# Rencana eksperimen tim 6: Taksiran jumlah alat bersuara yang menyala
+# Label: Otomatis: jumlah aktuator bersuara dari relay
+tim: 6
+judul: Taksiran jumlah alat bersuara yang menyala
+pembimbing: Ardika Satria
+pilar: Suara
+seed: 1006
+ulangan: 12
+durasi_kondisi_detik: 20
+jeda_detik: 2
+rekam:
+  audio:
+    aktif: true
+    sample_rate: 16000
+  kamera:
+    aktif: false
+faktor:
+  kipas:
+    - 0
+    - 128
+    - 255
+  pompa:
+    - 0
+    - 200
+  buzzer:
+    - 0
+    - 1
+  lampu:
+    - 0
+    - 255
+catatan: Lampu sengaja ikut diacak sebagai pengecoh (tidak bersuara)
+metode:
+  jenis_tugas: Klasifikasi jumlah 0–3
+  masukan_model: Log-mel 64 pita, 2 s
+  metrik_utama: Akurasi, MAE
+  jalur:
+    - CNN
+    - TL
+    - Transformer
+    - AE
+  pembanding_non_dl: MFCC rata-rata dan simpangan + Random Forest/SVM
