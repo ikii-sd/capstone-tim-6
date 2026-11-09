@@ -7,3 +7,4 @@ melainkan "mengerti atau tidak" — isi kolom terakhir dengan apa yang Anda ubah
 | Tanggal | Siapa (NIM) | Alat | Untuk apa | Apa yang diubah dari keluarannya |
 |---|---|---|---|---|
 | 2026-11-03 | 12345678 | Copilot | kerangka DataLoader | ganti normalisasi, tambah seed worker |
+| 2026-11-09 | 122450138 | Codex | Backlog #13: kerangka Transfer Learning dan uji sintetis | Adaptasi PANNs Cnn6 pada log-mel tim dan integrasi dengan evaluator starter. |
