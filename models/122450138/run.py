@@ -1,7 +1,4 @@
-"""Kerangka run.py anggota. Salin folder ini menjadi models/<nim>/ lalu isi bagian MODEL.
-
-    python models/<nim>/run.py --seed 1 [--final]
-"""
+"""Transfer Learning PANNs Cnn6 untuk klasifikasi audio Tim 6."""
 from __future__ import annotations
 
 import argparse
@@ -17,32 +14,42 @@ sys.path.insert(0, str(AKAR))
 from src.protokol import data  # noqa: E402  (protokol tim yang dibekukan)
 
 NIM = Path(__file__).resolve().parent.name     # nama folder = NIM
-JALUR = "cnn"                                   # cnn | tl | rnn | trf | ae
+JALUR = "tl"
 
 
 def latih_dan_prediksi(seed: int, final: bool) -> tuple[np.ndarray, np.ndarray | None]:
-    """Kembalikan (pred_val, pred_test|None). Ganti isi fungsi ini dengan model Anda."""
+    """Latih classifier pada embedding PANNs dan prediksi kelas 0 sampai 3."""
     import torch
+
+    from model import PannsCnn6, TLClassifierHead
 
     torch.manual_seed(seed)
     np.random.seed(seed)
     Xtr, ytr, Xva, _, Xte, _ = data.muat()
-    # ---- MODEL (contoh minimal; ganti dengan arsitektur jalur Anda) ----
-    def ke_tensor(X):
-        return torch.tensor(np.asarray(X, dtype=np.float32)).reshape(len(X), -1)
-    X, y = ke_tensor(Xtr), torch.tensor(np.asarray(ytr))
-    model = torch.nn.Sequential(torch.nn.Linear(X.shape[1], 10))
-    opt = torch.optim.SGD(model.parameters(), lr=0.01)       # tulis alasan pilihan optimizer di catatan.md
-    for _ in range(2):
-        for i in range(0, len(X), 128):
+
+    backbone = PannsCnn6.pralatih()
+
+    @torch.no_grad()
+    def embedding(fitur):
+        x = torch.as_tensor(fitur, dtype=torch.float32)
+        return torch.cat([backbone(batch) for batch in x.split(32)])
+
+    # Ekstraksi cukup sekali per split karena backbone dibekukan.
+    X = embedding(Xtr)
+    y = torch.as_tensor(ytr, dtype=torch.long)
+    model = TLClassifierHead(backbone.dim_embedding)
+    opt = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+    for _ in range(10):
+        for idx in torch.randperm(len(X)).split(128):
             opt.zero_grad()
-            loss = torch.nn.functional.cross_entropy(model(X[i:i + 128]), y[i:i + 128])
+            loss = torch.nn.functional.cross_entropy(model(X[idx]), y[idx])
             loss.backward()
             opt.step()
+
     model.eval()
     with torch.no_grad():
-        pred_val = model(ke_tensor(Xva)).argmax(1).numpy()
-        pred_test = model(ke_tensor(Xte)).argmax(1).numpy() if final and Xte is not None else None
+        pred_val = model(embedding(Xva)).argmax(1).numpy()
+        pred_test = model(embedding(Xte)).argmax(1).numpy() if final and Xte is not None else None
     return pred_val, pred_test
 
 
