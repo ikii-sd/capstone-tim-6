@@ -83,4 +83,19 @@ try:
 except AssertionError as e:
     print("kebocoran terdeteksi:", e)
 
+# 6) Data sintetis untuk rekan tim: bentuk benar, semua kelas ada, label sesuai aturan.
+import collections
+import time
+
+hitung = collections.Counter(
+    data.label_dari_faktor(*f) for f in __import__("itertools").product(*data.FAKTOR.values())
+)
+assert dict(sorted(hitung.items())) == {0: 2, 1: 8, 2: 10, 3: 4}
+mulai = time.time()
+Xl, yl, Xv, yv, Xu, yu = data.muat_sintetis(kondisi_per_ulangan=8)
+print("sintetis (8 kondisi):", Xl.shape, Xv.shape, Xu.shape, f"{time.time() - mulai:.1f} dtk")
+assert Xl.shape[1:] == (data.N_MEL, 101) and Xl.dtype == np.float32 and yl.dtype == np.int64
+assert set(np.concatenate([yl, yv, yu]).tolist()) == {0, 1, 2, 3}
+assert Xu.shape[0] == 4 * 8 * 18
+
 print("SEMUA UJI LULUS")

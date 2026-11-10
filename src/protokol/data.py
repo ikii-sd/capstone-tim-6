@@ -5,6 +5,8 @@ Bagian bertanda TODO bergantung pada format folder sesi (audio + label).
 """
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 
 from src.common import manifest, split
@@ -12,6 +14,7 @@ from src.common import manifest, split
 TUGAS = "klasifikasi"  # jumlah alat bersuara: 0, 1, 2, 3
 
 SR = 16_000        # Hz
+DURASI_S = 20      # durasi satu kondisi (detik)
 JENDELA_S = 2      # panjang jendela (detik)
 GESER_S = 1        # geseran jendela (detik)
 BUANG_AWAL_S = 1   # detik pertama tiap kondisi dibuang
@@ -109,6 +112,47 @@ def _baca_sesi() -> list[dict]:
         {"audio": array 1D (20 detik), "y": int 0..3, "ulangan": int, "kondisi": str}
     """
     raise NotImplementedError("Isi _baca_sesi() setelah format folder sesi diketahui.")
+
+
+FAKTOR = {"kipas": (0, 128, 255), "pompa": (0, 200), "buzzer": (0, 1), "lampu": (0, 255)}
+
+
+def label_dari_faktor(kipas, pompa, buzzer, lampu=0) -> int:
+    """Jumlah alat bersuara: kipas > 0, pompa > 0, buzzer = 1. Lampu tidak dihitung."""
+    return int(kipas > 0) + int(pompa > 0) + int(buzzer == 1)
+
+
+def rekaman_sintetis(kondisi_per_ulangan: int = 24, seed: int = 0):
+    """Generator rekaman PALSU untuk uji bentuk dan arsitektur model.
+
+    BUKAN data resmi: hasilnya tidak boleh dilaporkan sebagai evaluasi.
+    Tiap alat bersuara menambah satu nada (kipas 300 Hz, pompa 700 Hz, buzzer 2000 Hz).
+    """
+    semua = list(itertools.product(*FAKTOR.values()))
+    semua.sort(key=lambda f: label_dari_faktor(*f))
+    n = min(kondisi_per_ulangan, len(semua))
+    pilih = sorted(set(np.linspace(0, len(semua) - 1, n).round().astype(int)))
+    kondisi = [semua[i] for i in pilih]
+    rng = np.random.default_rng(seed)
+    t = np.arange(DURASI_S * SR) / SR
+    for ulangan in range(1, N_ULANGAN + 1):
+        for kipas, pompa, buzzer, lampu in kondisi:
+            audio = 0.05 * rng.normal(size=t.size)
+            if kipas > 0:
+                audio += 0.3 * np.sin(2 * np.pi * 300 * t)
+            if pompa > 0:
+                audio += 0.3 * np.sin(2 * np.pi * 700 * t)
+            if buzzer == 1:
+                audio += 0.3 * np.sin(2 * np.pi * 2000 * t)
+            yield {"audio": audio.astype(np.float32),
+                   "y": label_dari_faktor(kipas, pompa, buzzer, lampu),
+                   "ulangan": ulangan,
+                   "kondisi": f"k{kipas}-p{pompa}-b{buzzer}-l{lampu}"}
+
+
+def muat_sintetis(lipatan: int = 0, kondisi_per_ulangan: int = 24):
+    """Seperti muat(), tetapi memakai rekaman PALSU. Hanya untuk uji lokal, jangan di-commit ke run.py."""
+    return muat(lipatan=lipatan, rekaman=rekaman_sintetis(kondisi_per_ulangan))
 
 
 def muat(lipatan: int = 0, rekaman: list[dict] | None = None):
