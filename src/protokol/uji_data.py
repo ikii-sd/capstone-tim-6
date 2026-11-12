@@ -98,4 +98,21 @@ assert Xl.shape[1:] == (data.N_MEL, 101) and Xl.dtype == np.float32 and yl.dtype
 assert set(np.concatenate([yl, yv, yu]).tolist()) == {0, 1, 2, 3}
 assert Xu.shape[0] == 4 * 8 * 18
 
+# 7) Variabel lingkungan DATA_SINTETIS=1 membuat muat() tanpa argumen memakai data palsu
+#    (dipakai run.py dan evaluate.py lewat subproses), dan deterministik antar-panggilan.
+import os
+
+os.environ["DATA_SINTETIS"] = "1"
+os.environ["KONDISI_SINTETIS"] = "4"
+a1 = data.muat()
+a2 = data.muat()
+del os.environ["DATA_SINTETIS"], os.environ["KONDISI_SINTETIS"]
+assert a1[0].shape[1:] == (data.N_MEL, 101)
+assert all(np.array_equal(x, y_) for x, y_ in zip(a1, a2)), "muat() sintetis tidak deterministik"
+try:
+    data.muat()
+    raise SystemExit("GAGAL: tanpa DATA_SINTETIS, muat() harus gagal sampai _baca_sesi() terisi")
+except NotImplementedError:
+    print("tanpa DATA_SINTETIS, muat() gagal seperti seharusnya (data asli belum ada)")
+
 print("SEMUA UJI LULUS")

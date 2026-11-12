@@ -6,6 +6,8 @@ Bagian bertanda TODO bergantung pada format folder sesi (audio + label).
 from __future__ import annotations
 
 import itertools
+import os
+import sys
 
 import numpy as np
 
@@ -159,8 +161,16 @@ def muat(lipatan: int = 0, rekaman: list[dict] | None = None):
     """Kembalikan X_train, y_train, X_val, y_val, X_test, y_test.
 
     X berbentuk (N, N_MEL, n_bingkai) = log-mel ternormalisasi; y = jumlah alat bersuara.
+    Bila variabel lingkungan DATA_SINTETIS=1, memakai rekaman PALSU (hanya untuk uji alur).
     """
-    rekaman = _baca_sesi() if rekaman is None else rekaman
+    if rekaman is None:
+        if os.environ.get("DATA_SINTETIS") == "1":
+            n_kondisi = int(os.environ.get("KONDISI_SINTETIS", "8"))
+            print("PERINGATAN: DATA_SINTETIS=1, memakai rekaman PALSU. Hasilnya bukan evaluasi.",
+                  file=sys.stderr, flush=True)
+            rekaman = rekaman_sintetis(n_kondisi)
+        else:
+            rekaman = _baca_sesi()
 
     X, y, g = [], [], []
     for r in rekaman:
