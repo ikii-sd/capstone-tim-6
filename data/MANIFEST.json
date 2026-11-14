@@ -1,5 +1,9 @@
 {
-  "sumber": "https://… (tautan dataset dari kartu Kasus tim di Workbench)",
-  "berkas": ["data/latih.csv"],
-  "catatan": "Isi pada Sprint 0: versi/tanggal unduh, jumlah baris, dan perubahan (bila ada). Berkas data sendiri tidak di-commit."
+  "sumber": "Data primer Meja Uji Ruang Cerdas 5 V, sesi tim 6 'sesi-20261113-200606' (13 Nov 2026, 20.06-21.51 WIB), diunduh dari kartu Data meja di Papan Tim Workbench. Starter: https://github.com/sains-data/capstone-dl-2026-starter",
+  "berkas": [
+    "data/sesi-20261113-200606/label.csv",
+    "data/sesi-20261113-200606/audio_index.csv",
+    "data/sesi-20261113-200606/manifest.json"
+  ],
+  "catatan": "Sesi otomatis lengkap: 288 kondisi (24 kombinasi x 12 ulangan), 20 detik per kondisi, jeda 2 detik, audio mono 16 kHz, simulasi=false, log berakhir 'Selesai'. sha256 label.csv = fe963aafa87c7705fa3b6567049ff322eb1fd9121e58fe690fd367c5f5e90a4a (cocok dengan manifest.json sesi). Berkas audio (106 WAV, 176 MB) dan sensor (imu.csv 129 MB, daya.csv 51 MB) tidak di-commit sesuai .gitignore; manifest.json sesi ikut di-hash karena memuat sha256 setiap berkas audio, sehingga data_hash tetap berubah bila audio berubah. Pemeriksaan mutu: data/CATATAN-SESI.md."
 }
