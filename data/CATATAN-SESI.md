@@ -38,12 +38,81 @@
 
 Kondisi #252, #5, #102, #87, dan #9 diprioritaskan untuk ditinjau karena memiliki jumlah sampel IMU terendah berdasarkan pemeriksaan awal. Secara keseluruhan, ditemukan 109 kondisi dengan kurang dari 7.600 sampel dan 57 kondisi dengan kurang dari 7.000 sampel. Daftar terperinci kondisi tersebut belum disertakan dalam repository dan perlu disiapkan apabila diperlukan untuk pemeriksaan lanjutan.
 
+
+## Pemeriksaan lanjutan oleh Boby (14 November 2026)
+
+Menurut catatan Boby (122450048), sesi berlangsung 13 November 2026 pukul 20.06–21.51 WIB, dengan slot otomatis tanpa operator. Ia melaporkan `manifest.json` sesi menunjukkan `simulasi: false`, perekam versi 1.6, host `sditera-civ`; durasi setiap kondisi 20,000–20,001 detik; dan checksum `label.csv` cocok dengan manifest sesi. Pemeriksaan Boby meliputi seluruh indeks WAV, kecocokan jumlah sampel dengan isi WAV, cakupan waktu audio, serta pemeriksaan energi akustik per faktor. Ini tidak berarti seluruh QC fisik/lingkungan dan keputusan eksklusi kondisi sudah final.
+
+### Pemeriksaan lanjutan Boby: celah antar-potongan WAV
+
+Audio direkam sebagai 106 potongan berurutan (±60 detik), bukan satu berkas per kondisi.
+Batas antar-potongan tidak bersambung sempurna: selisih −14 sampai +21 sampel (maksimum 1,3 ms),
+pada 82 dari 105 batas; 75 dari 288 kondisi melintasi satu batas.
+
+Pemuat mengiris tiap kondisi dari garis waktu `t_mulai_host` tiap potongan, bukan dengan
+menyambung potongan begitu saja, sehingga penyimpangan tidak menumpuk sepanjang sesi
+(total pergeseran bila disambung mentah: 46 ms). Celah ≤ 5 ms diisi interpolasi linear dan
+dihitung; celah lebih panjang membuat pemuatan gagal. Sesi ini: **763 sampel (47,7 ms dari
+5760 detik rekaman, 0,0008 %)** ditambal. Dampak celah yang ditambal terhadap hasil model masih perlu dinilai bila relevan.
+
+### Pemeriksaan lanjutan Boby: kesesuaian label (akustik)
+
+Energi log-mel rata-rata dibandingkan **berpasangan**: dua kondisi yang hanya berbeda pada satu
+faktor, di dalam ulangan yang sama. Perbandingan langsung antar-kelompok menyesatkan karena
+kipas ikut mengisi pita yang sama dengan pompa.
+
+| Faktor | Pita | Selisih rata-rata | Naik pada |
+|---|---|---|---|
+| Kipas 255 vs 0 | 50–500 Hz | +2,11 | 83 dari 96 pasangan |
+| Buzzer 1 vs 0 | 1500–3000 Hz | +1,64 | 139 dari 144 pasangan |
+| Pompa 200 vs 0 | 500–1500 Hz | +0,69 | 99 dari 144 pasangan |
+| Lampu 255 vs 0 (pengecoh) | 0–8000 Hz | +0,12 | — |
+
+Energi total naik berurutan menurut kelas: −5,06 (0 alat), −3,55 (1), −2,79 (2), −2,25 (3).
+Kipas 128 (−2,14) memang lebih pelan daripada kipas 255 (−0,57) tetapi lebih keras daripada
+kipas 0 (−2,68), jadi taraf 128 benar dihitung sebagai menyala.
+
+**Pompa.** Kanal arus pompa tidak ditemukan di `daya.csv`, sehingga tidak bisa dipakai
+untuk memastikan pompa menyala; pemeriksaan tambahan dilakukan lewat indikator akustik.
+Status pemasangan sensor arus pompa perlu dikonfirmasi kepada pengelola. Respons akustik pompa tercatat
+(rata-rata +0,69, median +0,45, naik pada 69 % pasangan), tetapi merupakan indikasi **paling lemah**
+di antara ketiganya. Ini risiko yang perlu diawasi: kekeliruan model berpotensi
+terkonsentrasi pada pasangan kondisi yang hanya berbeda pompa. Lampu hampir tidak berpengaruh
+(+0,12), yang memang diharapkan dari pengecoh.
+
+
+## Kejanggalan yang tercatat
+
+1. Mikrofon menolak 16000 Hz (`PaErrorCode -9997`), sehingga perekam merekam pada 48000 Hz lalu
+   menurunkannya ke 16000 Hz (`log.txt` baris 4). Seluruh audio tetap 16 kHz seperti dituntut
+   protokol, tetapi penurunan laju ini berlaku untuk **semua** rekaman sesi ini dan perlu
+   disebut di laporan. Bila sesi lain direkam langsung pada 16 kHz, keduanya tidak sepenuhnya
+   setara.
+2. `digital.csv` hanya berisi baris tajuk (28 bita). Tidak ada kejadian pintu atau PIR tercatat.
+   Wajar untuk ruang kosong dan tertutup, tetapi berarti tidak ada bukti sensor bahwa ruangan
+   benar-benar kosong selama sesi.
+3. Dua arsip lain yang disebut dalam catatan Boby belum diperiksa pada saat pemeriksaan 14 November 2026; status perlu diperbarui bila kemudian sudah diperiksa.
+
+## Berkas yang tidak di-commit
+
+Menurut konfigurasi `.gitignore` yang dijelaskan Boby saat pemeriksaan, isi folder sesi tidak masuk ke
+GitHub: `audio/` (106 WAV, 176 MB), `imu.csv` (129 MB), `daya.csv` (51 MB), dan CSV sensor lain.
+Dua berkas terbesar melampaui batas 100 MB per berkas di GitHub, jadi memang tidak dapat
+di-commit apa adanya.
+
+Dokumen metode (bagian 7.5) meminta `label.csv`, CSV sensor, dan `manifest.json` dimasukkan ke
+`data/`. Hal ini bertentangan dengan `.gitignore` bawaan starter. **Perlu keputusan tim dan
+pembimbing**: melonggarkan `.gitignore` untuk `label.csv`, `audio_index.csv`, dan `manifest.json`
+saja (ketiganya kecil, total 31 KB), atau tetap menyimpan seluruh folder sesi di luar repo.
+Status keputusan dan file yang sudah masuk repo harus disesuaikan dengan hasil merge `.gitignore` dan keadaan repository terbaru.
+
+Arsip lengkap dan tautan penyimpanan tim dicatat di Papan Tim Workbench.
 ## Tindak lanjut sebelum QC final
 1. **Konfirmasi kanal pompa:** tanyakan apakah arus pompa direkam di berkas lain atau memang tidak tersedia. Jangan menyimpulkan pompa kering/tersumbat hanya dari absennya kanal.
-2. **Audio:** cek integritas seluruh WAV, kesinambungan waktu, serta perbedaan sinyal saat buzzer=0 dan buzzer=1; lakukan dengar sampel representatif bila memungkinkan.
+2. **Audio:** verifikasi hasil pemeriksaan teknis Boby, lakukan dengar sampel representatif bila memungkinkan, dan catat keputusan QC menyeluruh.
 3. **IMU:** tinjau kondisi dengan sampel kurang dan tentukan apakah ada yang perlu dikecualikan sesuai kriteria tim.
 4. **Dokumentasi:** pastikan seluruh anggota memakai berkas `label.csv` yang sama dan nilai `data_hash` yang identik dalam `data/MANIFEST.json`.
 5. **Konfirmasi representasi lampu:** nilai ON `255` di label dan `1` di aktuator perlu dipahami sebagai representasi PWM/boolean sebelum dinyatakan masalah.
 
 ## Status akhir
-**QC sementara — belum final.** Kelengkapan rancangan 288 kondisi terpenuhi, tetapi validasi arus pompa dan pemeriksaan audio menyeluruh masih terbuka. Keputusan pengecualian kondisi perlu diperbarui setelah tindak lanjut.
+**QC sementara — belum final.** Kelengkapan rancangan 288 kondisi terpenuhi, tetapi validasi arus pompa dan validasi QC audio secara menyeluruh masih terbuka meskipun pemeriksaan teknis Boby telah dilaporkan. Keputusan pengecualian kondisi perlu diperbarui setelah tindak lanjut.

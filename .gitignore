@@ -1,12 +1,12 @@
-# dataset kasus tim tidak di-commit; hanya manifesnya
+# dataset kasus tim tidak di-commit; hanya manifestnya
 data/*
 !data/MANIFEST.json
 !data/CATATAN-SESI.md
 !data/manifest-sesi-20261113-200606.json
+
 *.pt
 *.pth
 *.ckpt
 __pycache__/
 .ipynb_checkpoints/
 .venv/
-# prediksi boleh di-commit (kecil); checkpoint model tidak
