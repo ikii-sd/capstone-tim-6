@@ -1,5 +1,15 @@
+
 {
-  "sumber": "https://… (tautan dataset dari kartu Kasus tim di Workbench)",
-  "berkas": ["data/latih.csv"],
-  "catatan": "Isi pada Sprint 0: versi/tanggal unduh, jumlah baris, dan perubahan (bila ada). Berkas data sendiri tidak di-commit."
+  "sumber": "Dataset eksperimen Tim 6, sesi-20261113-200606",
+  "berkas": [
+    "data/label.csv",
+    "data/imu.csv",
+    "data/daya.csv",
+    "data/aktuator.csv",
+    "data/audio_index.csv",
+    "data/lingkungan.csv",
+    "data/digital.csv"
+  ],
+  "data_hash": "49995c7fa09a800959bab64782bb80fa",
+  "catatan": "Dataset sesi 13 November 2026. Label berisi 288 kondisi (24 kombinasi x 12 pengulangan). QC sementara: kanal arus pompa tidak tersedia di daya.csv, beberapa kondisi memiliki kekurangan sampel IMU, dan validasi isi audio belum final. File WAV disimpan terpisah."
 }
