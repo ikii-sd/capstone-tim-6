@@ -1,11 +1,17 @@
 """Pemuat data kasus tim: taksiran jumlah alat bersuara yang menyala (t06).
 
-DRAF Sprint 0. Aturan di sini harus sama persis dengan PROTOKOL.md.
-Bagian bertanda TODO bergantung pada format folder sesi (audio + label).
+Aturan di sini harus sama persis dengan PROTOKOL.md.
+Sumber data: folder sesi meja di data/sesi-*/ (label.csv, audio_index.csv, audio/).
 """
 from __future__ import annotations
 
+import csv
 import itertools
+import os
+import sys
+import wave
+from collections.abc import Iterator
+from pathlib import Path
 
 import numpy as np
 
@@ -105,13 +111,137 @@ def periksa_kebocoran(g_latih, g_val, g_uji) -> None:
         raise AssertionError(f"Ulangan muncul di lebih dari satu bagian: {sorted(tumpang)}")
 
 
-def _baca_sesi() -> list[dict]:
-    """TODO: baca folder sesi (audio/ 16 kHz + label dari relay), lewat manifest.
+# Potongan WAV meja tidak bersambung sempurna: batas antar-potongan meleset beberapa sampel
+# (buffer perekam). Celah sekecil ini diisi dengan interpolasi linear dan dicatat; celah yang
+# lebih panjang dari toleransi ini dianggap data hilang dan membuat pemuatan gagal.
+TOLERANSI_CELAH_S = 0.005   # 5 ms = 80 sampel pada 16 kHz
 
-    Harus mengembalikan daftar rekaman, satu per (kondisi, ulangan):
-        {"audio": array 1D (20 detik), "y": int 0..3, "ulangan": int, "kondisi": str}
+KOLOM_LABEL = ("no", "ulangan", "kipas", "pompa", "buzzer", "lampu", "t_mulai_host")
+KOLOM_INDEKS = ("berkas", "t_mulai_host", "sample_rate", "jumlah_sampel")
+
+
+def _folder_sesi() -> Path:
+    """Folder sesi meja: dari variabel lingkungan SESI, atau satu-satunya ``data/sesi-*``."""
+    pilih = os.environ.get("SESI")
+    if pilih:
+        folder = Path(pilih)
+        if not folder.is_absolute():
+            folder = manifest.AKAR / folder
+        if not (folder / "label.csv").exists():
+            raise FileNotFoundError(f"SESI={pilih}: {folder / 'label.csv'} tidak ada")
+        return folder
+    kandidat = sorted(p for p in (manifest.AKAR / "data").glob("sesi-*") if (p / "label.csv").exists())
+    if not kandidat:
+        raise FileNotFoundError(
+            "Folder sesi tidak ditemukan. Letakkan hasil meja di data/sesi-<cap waktu>/ "
+            "(berisi label.csv, audio_index.csv, dan audio/), atau setel SESI=<jalur>.")
+    if len(kandidat) > 1:
+        raise ValueError("Lebih dari satu folder sesi di data/: "
+                         + ", ".join(p.name for p in kandidat)
+                         + ". Pilih salah satu dengan SESI=<jalur>.")
+    return kandidat[0]
+
+
+def _baca_csv(path: Path, wajib: tuple[str, ...]) -> list[dict]:
+    with path.open(newline="", encoding="utf-8") as f:
+        baris = list(csv.DictReader(f))
+    if not baris:
+        raise ValueError(f"{path.name} kosong")
+    kurang = [k for k in wajib if k not in baris[0]]
+    if kurang:
+        raise ValueError(f"{path.name}: kolom hilang {kurang}; yang ada {list(baris[0])}")
+    return baris
+
+
+class _Audio:
+    """Audio sesi: potongan WAV berurutan waktu, dipetakan lewat ``audio_index.csv``."""
+
+    def __init__(self, folder: Path, cache_maks: int = 3):
+        self.folder = folder
+        baris = _baca_csv(folder / "audio_index.csv", KOLOM_INDEKS)
+        laju = {int(b["sample_rate"]) for b in baris}
+        if laju != {SR}:
+            raise ValueError(f"audio_index.csv: laju sampel {sorted(laju)}, protokol menuntut {SR} Hz")
+        self.seg = sorted((float(b["t_mulai_host"]), int(b["jumlah_sampel"]), b["berkas"]) for b in baris)
+        self._cache: dict[str, np.ndarray] = {}
+        self._cache_maks = cache_maks
+        self.sampel_ditambal = 0
+
+    def _wav(self, nama: str) -> np.ndarray:
+        x = self._cache.get(nama)
+        if x is None:
+            with wave.open(str(self.folder / "audio" / nama), "rb") as w:
+                bentuk = (w.getnchannels(), w.getsampwidth(), w.getframerate())
+                if bentuk != (1, 2, SR):
+                    raise ValueError(f"{nama}: diharapkan mono 16-bit {SR} Hz, ditemukan "
+                                     f"{bentuk[0]} kanal / {8 * bentuk[1]} bit / {bentuk[2]} Hz")
+                mentah = w.readframes(w.getnframes())
+            x = np.frombuffer(mentah, dtype="<i2").astype(np.float32) / 32768.0
+            self._cache[nama] = x
+            while len(self._cache) > self._cache_maks:
+                self._cache.pop(next(iter(self._cache)))
+        return x
+
+    def potongan(self, t0: float, n: int) -> np.ndarray:
+        """``n`` sampel berurutan mulai waktu host ``t0``; gagal bila ada sampel yang hilang."""
+        keluar = np.zeros(n, dtype=np.float32)
+        terisi = np.zeros(n, dtype=bool)
+        habis = t0 + n / SR
+        for t_seg, n_seg, nama in self.seg:
+            if t_seg + n_seg / SR <= t0:
+                continue
+            if t_seg >= habis:
+                break
+            x = self._wav(nama)
+            geser = int(round((t_seg - t0) * SR))
+            a_sumber, a_tujuan = max(0, -geser), max(0, geser)
+            panjang = min(len(x) - a_sumber, n - a_tujuan)
+            if panjang <= 0:
+                continue
+            keluar[a_tujuan:a_tujuan + panjang] = x[a_sumber:a_sumber + panjang]
+            terisi[a_tujuan:a_tujuan + panjang] = True
+        if not terisi.all():
+            self._tambal(keluar, terisi, t0)
+        return keluar
+
+    def _tambal(self, keluar: np.ndarray, terisi: np.ndarray, t0: float) -> None:
+        """Isi celah pendek antar-potongan WAV dengan interpolasi linear; celah panjang gagal."""
+        batas = np.flatnonzero(np.diff(np.concatenate(([0], (~terisi).view(np.int8), [0]))))
+        maks = int(TOLERANSI_CELAH_S * SR)
+        for awal, akhir in zip(batas[::2], batas[1::2]):
+            if akhir - awal > maks:
+                raise ValueError(
+                    f"audio hilang pada t_mulai_host={t0:.4f}: {akhir - awal} sampel berurutan "
+                    f"({(akhir - awal) / SR * 1000:.1f} ms) melebihi toleransi "
+                    f"{TOLERANSI_CELAH_S * 1000:.0f} ms; periksa audio_index.csv dan audio/")
+        kosong = np.flatnonzero(~terisi)
+        ada = np.flatnonzero(terisi)
+        keluar[kosong] = np.interp(kosong, ada, keluar[ada]).astype(np.float32)
+        self.sampel_ditambal += int(kosong.size)
+
+
+def _baca_sesi() -> Iterator[dict]:
+    """Rekaman dari folder sesi meja, satu per kondisi (288 = 24 kombinasi x 12 ulangan).
+
+    Audio meja direkam sebagai potongan WAV berurutan, bukan satu berkas per kondisi, sehingga
+    tiap kondisi diiris dari garis waktu ``t_mulai_host`` dengan bantuan ``audio_index.csv``.
+    Menghasilkan {"audio": array 1D (20 detik), "y": int 0..3, "ulangan": int, "kondisi": str}.
     """
-    raise NotImplementedError("Isi _baca_sesi() setelah format folder sesi diketahui.")
+    folder = _folder_sesi()
+    audio = _Audio(folder)
+    baris = _baca_csv(folder / "label.csv", KOLOM_LABEL)
+    baris.sort(key=lambda b: float(b["t_mulai_host"]))
+    n = DURASI_S * SR
+    for b in baris:
+        kipas, pompa, buzzer, lampu = (int(b[k]) for k in ("kipas", "pompa", "buzzer", "lampu"))
+        yield {"audio": audio.potongan(float(b["t_mulai_host"]), n),
+               "y": label_dari_faktor(kipas, pompa, buzzer, lampu),
+               "ulangan": int(b["ulangan"]),
+               "kondisi": f"k{kipas}-p{pompa}-b{buzzer}-l{lampu}"}
+    if audio.sampel_ditambal:
+        print(f"catatan: {audio.sampel_ditambal} sampel "
+              f"({audio.sampel_ditambal / SR * 1000:.1f} ms dari {len(baris) * DURASI_S} detik) "
+              f"diisi interpolasi pada batas potongan WAV.", file=sys.stderr, flush=True)
 
 
 FAKTOR = {"kipas": (0, 128, 255), "pompa": (0, 200), "buzzer": (0, 1), "lampu": (0, 255)}
@@ -159,8 +289,16 @@ def muat(lipatan: int = 0, rekaman: list[dict] | None = None):
     """Kembalikan X_train, y_train, X_val, y_val, X_test, y_test.
 
     X berbentuk (N, N_MEL, n_bingkai) = log-mel ternormalisasi; y = jumlah alat bersuara.
+    Bila variabel lingkungan DATA_SINTETIS=1, memakai rekaman PALSU (hanya untuk uji alur).
     """
-    rekaman = _baca_sesi() if rekaman is None else rekaman
+    if rekaman is None:
+        if os.environ.get("DATA_SINTETIS") == "1":
+            n_kondisi = int(os.environ.get("KONDISI_SINTETIS", "8"))
+            print("PERINGATAN: DATA_SINTETIS=1, memakai rekaman PALSU. Hasilnya bukan evaluasi.",
+                  file=sys.stderr, flush=True)
+            rekaman = rekaman_sintetis(n_kondisi)
+        else:
+            rekaman = _baca_sesi()
 
     X, y, g = [], [], []
     for r in rekaman:
