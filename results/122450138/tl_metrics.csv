@@ -1,0 +1,4 @@
+seed,freeze_blocks,epoch,batch,lr,wd,dropout,norm_emb,val_acc,val_macro_f1,val_mae,durasi_detik,perangkat,data_hash,confusion_matrix
+1,3,25,64,0.001,0.01,0.3,True,0.946759,0.951703,0.053241,78.3,cpu laptop,ffcb1966eec8bf6b285607a0e19e97c0,"[[36, 0, 0, 0], [1, 131, 12, 0], [0, 0, 180, 0], [0, 0, 10, 62]]"
+2,3,25,64,0.001,0.01,0.3,True,0.94213,0.944408,0.05787,83.8,cpu laptop,ffcb1966eec8bf6b285607a0e19e97c0,"[[36, 0, 0, 0], [0, 137, 7, 0], [0, 0, 174, 6], [0, 0, 12, 60]]"
+3,3,25,64,0.001,0.01,0.3,True,0.956019,0.961027,0.043981,82.8,cpu laptop,ffcb1966eec8bf6b285607a0e19e97c0,"[[36, 0, 0, 0], [1, 132, 11, 0], [0, 0, 180, 0], [0, 0, 7, 65]]"
