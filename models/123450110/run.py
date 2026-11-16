@@ -1,127 +1,143 @@
 
-"""Runner model Transformer untuk Capstone Tim 6.
-
-Penggunaan:
-    python models/123450110/run.py --seed 1
-    python models/123450110/run.py --seed 1 --final
-"""
-
-from __future__ import annotations
-
-import argparse
-import sys
-import time
 from pathlib import Path
+import argparse
+import time
+import random
+import sys
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 
-# Lokasi root repository
-AKAR = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(AKAR))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from src.protokol import data  # noqa: E402
-from transformer import TransformerKlasifikasi  # noqa: E402
-from simulasi import buat_rekaman  # noqa: E402
+from src.protokol import data
+from transformer import TransformerKlasifikasi
 
 
+# IDENTITAS MODEL
 NIM = Path(__file__).resolve().parent.name
 JALUR = "trf"
 
-# Konfigurasi training
+
+# KONFIGURASI TRAINING
 EPOCHS = 2
 BATCH_SIZE = 32
 LEARNING_RATE = 0.001
 WEIGHT_DECAY = 0.01
+N_KELAS = 4
+N_FOLD = 3
 
 
-def latih_dan_prediksi(
-    seed: int,
-    final: bool,
-    rekaman: list[dict] | None = None,
-    perangkat: str = "cpu",
-) -> tuple[np.ndarray, np.ndarray | None]:
-    """Latih Transformer dan hasilkan prediksi validasi/test."""
-
-    torch.manual_seed(seed)
+# UTILITAS
+def atur_seed(seed):
+    random.seed(seed)
     np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def ke_tensor(X, y=None):
+    X_tensor = torch.as_tensor(X, dtype=torch.float32)
+
+    if y is None:
+        return X_tensor
+
+    y_tensor = torch.as_tensor(y, dtype=torch.long)
+    return X_tensor, y_tensor
+
+
+# TRAINING DAN PREDIKSI
+def latih_dan_prediksi(seed, fold=0, final=False, perangkat="cpu"):
+    atur_seed(seed)
 
     device = torch.device(perangkat)
 
-    # Memuat data resmi atau data simulasi
-    if rekaman is None:
-        Xtr, ytr, Xva, _, Xte, _ = data.muat()
-    else:
-        Xtr, ytr, Xva, _, Xte, _ = data.muat(rekaman=rekaman)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA tidak tersedia pada perangkat ini.")
+
+    print("\nMemuat dataset asli...")
+
+    Xtr, ytr, Xva, yva, Xte, yte = data.muat(lipatan=fold)
+
+    print(f"Fold     : {fold}")
+    print(f"Training : {Xtr.shape} | {ytr.shape}")
+    print(f"Validasi : {Xva.shape} | {yva.shape}")
+    print(f"Pengujian: {Xte.shape} | {yte.shape}")
 
     if len(Xtr) == 0 or len(Xva) == 0:
         raise ValueError("Data training atau validasi kosong.")
 
-    def ke_tensor(X):
-        return torch.as_tensor(
-            np.asarray(X, dtype=np.float32),
-            dtype=torch.float32,
+    if Xtr.ndim != 3 or Xtr.shape[1:] != (64, 101):
+        raise ValueError(
+            f"Bentuk fitur tidak sesuai. Diharapkan (N,64,101), "
+            f"didapatkan {Xtr.shape}"
         )
 
-    X_train = ke_tensor(Xtr).to(device)
-    y_train = torch.as_tensor(
-        np.asarray(ytr),
-        dtype=torch.long,
-    ).to(device)
+    X_train, y_train = ke_tensor(Xtr, ytr)
+    X_validasi = ke_tensor(Xva)
 
-    X_validasi = ke_tensor(Xva).to(device)
+    dataset = TensorDataset(X_train, y_train)
 
-    # Inisialisasi model Transformer
-    model = TransformerKlasifikasi(
-        n_mel=data.N_MEL,
-        d_model=64,
-        nhead=4,
-        num_layers=2,
-        num_classes=data.N_KELAS,
-        max_seq_len=101,
-        dropout=0.1,
-    ).to(device)
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+
+    loader = DataLoader(
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        generator=generator
+    )
+
+    model = TransformerKlasifikasi().to(device)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
-        weight_decay=WEIGHT_DECAY,
+        weight_decay=WEIGHT_DECAY
     )
 
-    # Training
-    print(f"Memulai training Transformer pada {device}...")
+    print(f"\nMemulai training Transformer pada {device}...")
 
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0.0
 
-        indeks = torch.randperm(len(X_train), device=device)
-
-        for i in range(0, len(X_train), BATCH_SIZE):
-            idx = indeks[i:i + BATCH_SIZE]
-
-            xb = X_train[idx]
-            yb = y_train[idx]
+        for xb, yb in loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
 
             optimizer.zero_grad()
 
             logits = model(xb)
+
+            if logits.ndim != 2 or logits.shape[1] != N_KELAS:
+                raise ValueError(
+                    f"Output model harus [batch,4], "
+                    f"didapatkan {logits.shape}"
+                )
+
             loss = torch.nn.functional.cross_entropy(logits, yb)
 
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item() * len(idx)
+            total_loss += loss.item() * len(xb)
 
-        rata_loss = total_loss / len(X_train)
+        rata_loss = total_loss / len(dataset)
 
         print(
             f"Epoch {epoch + 1}/{EPOCHS} "
             f"- Loss: {rata_loss:.4f}"
         )
 
-    # Prediksi
+    # PREDIKSI VALIDASI
     model.eval()
+    X_validasi = X_validasi.to(device)
 
     with torch.no_grad():
         pred_val = (
@@ -131,11 +147,16 @@ def latih_dan_prediksi(
             .numpy()
         )
 
-        pred_test = None
+    # PREDIKSI TEST HANYA PADA TAHAP FINAL
+    pred_test = None
 
-        if final and Xte is not None:
-            X_test = ke_tensor(Xte).to(device)
+    if final:
+        if Xte is None or len(Xte) == 0:
+            raise ValueError("Data pengujian kosong.")
 
+        X_test = ke_tensor(Xte).to(device)
+
+        with torch.no_grad():
             pred_test = (
                 model(X_test)
                 .argmax(dim=1)
@@ -143,124 +164,74 @@ def latih_dan_prediksi(
                 .numpy()
             )
 
-    return pred_val, pred_test
+    return pred_val, pred_test, model
 
 
+# MAIN
 def main():
-    """Menjalankan training, menyimpan prediksi, dan evaluasi."""
-
     parser = argparse.ArgumentParser(
-        description="Training model Transformer untuk Capstone Tim 6."
+        description="Training Transformer - Capstone Tim 6"
     )
 
+    parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(
-        "--seed",
+        "--fold",
         type=int,
-        default=1,
-        help="Seed eksperimen.",
+        choices=[0, 1, 2],
+        default=0
     )
-
-    parser.add_argument(
-        "--final",
-        action="store_true",
-        help="Aktifkan prediksi data test.",
-    )
-
+    parser.add_argument("--final", action="store_true")
     parser.add_argument(
         "--perangkat",
-        type=str,
-        default="cpu",
         choices=["cpu", "cuda"],
-        help="Perangkat komputasi.",
+        default="cpu"
     )
 
     args = parser.parse_args()
 
-    if args.perangkat == "cuda" and not torch.cuda.is_available():
-        parser.error("CUDA diminta, tetapi tidak tersedia.")
-
-    # Folder hasil
-    folder_hasil = AKAR / "results" / NIM
-    folder_hasil.mkdir(parents=True, exist_ok=True)
-
-    mulai = time.perf_counter()
-
     print("=" * 55)
     print("CAPSTONE TIM 6 - TRANSFORMER")
-    print(f"NIM       : {NIM}")
-    print(f"Seed      : {args.seed}")
-    print(f"Final     : {args.final}")
-    print(f"Perangkat : {args.perangkat}")
     print("=" * 55)
 
-    # Buat data simulasi
-    print("\nMenyiapkan data simulasi...")
+    print(f"NIM       : {NIM}")
+    print(f"Seed      : {args.seed}")
+    print(f"Fold      : {args.fold}")
+    print(f"Final     : {args.final}")
+    print(f"Perangkat : {args.perangkat}")
 
-    rekaman = buat_rekaman(seed=110)
-    print(f"Jumlah rekaman: {len(rekaman)}")
+    folder_hasil = Path("results") / NIM / f"fold_{args.fold}"
+    folder_hasil.mkdir(parents=True, exist_ok=True)
 
-    # Muat data melalui protokol resmi
-    muat_asli = data.muat
-    paket_data = muat_asli(rekaman=rekaman)
+    waktu_mulai = time.time()
 
-    # Gunakan paket data yang sama untuk training dan evaluator
-    data.muat = lambda *args, **kwargs: paket_data
+    pred_val, pred_test, model = latih_dan_prediksi(
+        seed=args.seed,
+        fold=args.fold,
+        final=args.final,
+        perangkat=args.perangkat
+    )
 
-    try:
-        # Training dan prediksi
-        pred_val, pred_test = latih_dan_prediksi(
-            seed=args.seed,
-            final=args.final,
-            perangkat=args.perangkat,
-        )
+    path_val = folder_hasil / "pred_val.npy"
+    np.save(path_val, pred_val)
+    print(f"\nPrediksi validasi disimpan: {path_val} {pred_val.shape}")
 
-        # Simpan prediksi validasi
-        np.save(folder_hasil / "pred_val.npy", pred_val)
+    if pred_test is not None:
+        path_test = folder_hasil / "pred_test.npy"
+        np.save(path_test, pred_test)
+        print(f"Prediksi pengujian disimpan: {path_test} {pred_test.shape}")
 
-        print(f"Prediksi validasi disimpan: {pred_val.shape}")
+    path_model = folder_hasil / "model_transformer.pt"
+    torch.save(model.state_dict(), path_model)
+    print(f"Model disimpan: {path_model}")
 
-        # Simpan prediksi test jika mode final
-        if args.final and pred_test is not None:
-            np.save(folder_hasil / "pred_test.npy", pred_test)
-            print(f"Prediksi test disimpan: {pred_test.shape}")
+    durasi = time.time() - waktu_mulai
 
-        durasi = time.perf_counter() - mulai
-
-        print(f"Durasi training dan prediksi: {durasi:.2f} detik")
-
-        # Jalankan evaluator resmi dalam proses yang sama
-        from src.common import evaluate
-
-        argumen_awal = sys.argv.copy()
-
-        try:
-            sys.argv = [
-                "evaluate",
-                "--nim", NIM,
-                "--model", JALUR,
-                "--seed", str(args.seed),
-                "--pred-val", str(folder_hasil / "pred_val.npy"),
-                "--durasi", str(durasi),
-                "--perangkat", args.perangkat,
-            ]
-
-            if args.final:
-                sys.argv.extend([
-                    "--pred-test",
-                    str(folder_hasil / "pred_test.npy"),
-                ])
-
-            print("\nMenjalankan evaluator resmi...")
-            evaluate.main()
-
-        finally:
-            sys.argv = argumen_awal
-
-    finally:
-        # Pulihkan fungsi muat asli
-        data.muat = muat_asli
-
-    print("\nProses Transformer selesai.")
+    print(f"\nDurasi: {durasi:.2f} detik")
+    print("\nTraining Transformer selesai.")
+    print(
+        "Catatan: evaluator resmi belum dijalankan; "
+        "hasil ini belum merupakan evaluasi akhir."
+    )
 
 
 if __name__ == "__main__":
