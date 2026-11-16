@@ -1,5 +1,5 @@
 
-"""Kerangka run.py anggota untuk model Transformer.
+"""Runner model Transformer untuk Capstone Tim 6.
 
 Penggunaan:
     python models/123450110/run.py --seed 1
@@ -9,7 +9,6 @@ Penggunaan:
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -23,6 +22,7 @@ sys.path.insert(0, str(AKAR))
 
 from src.protokol import data  # noqa: E402
 from transformer import TransformerKlasifikasi  # noqa: E402
+from simulasi import buat_rekaman  # noqa: E402
 
 
 NIM = Path(__file__).resolve().parent.name
@@ -46,7 +46,6 @@ def latih_dan_prediksi(
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    # Tentukan perangkat komputasi
     device = torch.device(perangkat)
 
     # Memuat data resmi atau data simulasi
@@ -58,7 +57,6 @@ def latih_dan_prediksi(
     if len(Xtr) == 0 or len(Xva) == 0:
         raise ValueError("Data training atau validasi kosong.")
 
-    # Mempertahankan bentuk [N, 64, 101]
     def ke_tensor(X):
         return torch.as_tensor(
             np.asarray(X, dtype=np.float32),
@@ -84,7 +82,6 @@ def latih_dan_prediksi(
         dropout=0.1,
     ).to(device)
 
-    # Optimizer
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -98,7 +95,6 @@ def latih_dan_prediksi(
         model.train()
         total_loss = 0.0
 
-        # Acak urutan sampel setiap epoch
         indeks = torch.randperm(len(X_train), device=device)
 
         for i in range(0, len(X_train), BATCH_SIZE):
@@ -187,7 +183,6 @@ def main():
     folder_hasil = AKAR / "results" / NIM
     folder_hasil.mkdir(parents=True, exist_ok=True)
 
-    # Mulai pencatatan waktu
     mulai = time.perf_counter()
 
     print("=" * 55)
@@ -198,57 +193,75 @@ def main():
     print(f"Perangkat : {args.perangkat}")
     print("=" * 55)
 
-    # Training dan prediksi
-    pred_val, pred_test = latih_dan_prediksi(
-        seed=args.seed,
-        final=args.final,
-        perangkat=args.perangkat,
-    )
+    # Buat data simulasi
+    print("\nMenyiapkan data simulasi...")
 
-    # Simpan prediksi validasi
-    np.save(folder_hasil / "pred_val.npy", pred_val)
+    rekaman = buat_rekaman(seed=110)
+    print(f"Jumlah rekaman: {len(rekaman)}")
 
-    print(f"Prediksi validasi disimpan: {pred_val.shape}")
+    # Muat data melalui protokol resmi
+    muat_asli = data.muat
+    paket_data = muat_asli(rekaman=rekaman)
 
-    # Simpan prediksi test jika mode final
-    if args.final and pred_test is not None:
-        np.save(folder_hasil / "pred_test.npy", pred_test)
-        print(f"Prediksi test disimpan: {pred_test.shape}")
+    # Gunakan paket data yang sama untuk training dan evaluator
+    data.muat = lambda *args, **kwargs: paket_data
 
-    durasi = time.perf_counter() - mulai
-    print(f"Durasi training dan prediksi: {durasi:.2f} detik")
+    try:
+        # Training dan prediksi
+        pred_val, pred_test = latih_dan_prediksi(
+            seed=args.seed,
+            final=args.final,
+            perangkat=args.perangkat,
+        )
 
-        # Jalankan evaluator repository
-    perintah = [
-        sys.executable,
-        "-m",
-        "src.common.evaluate",
-        "--nim",
-        NIM,
-        "--model",
-        JALUR,
-        "--seed",
-        str(args.seed),
-        "--pred-val",
-        str(folder_hasil / "pred_val.npy"),
-        "--durasi",
-        str(durasi),
-        "--perangkat",
-        args.perangkat,
-    ]
+        # Simpan prediksi validasi
+        np.save(folder_hasil / "pred_val.npy", pred_val)
 
-    if args.final:
-        perintah.extend([
-            "--pred-test",
-            str(folder_hasil / "pred_test.npy"),
-        ])
+        print(f"Prediksi validasi disimpan: {pred_val.shape}")
 
-    print("\nMenjalankan evaluator...")
+        # Simpan prediksi test jika mode final
+        if args.final and pred_test is not None:
+            np.save(folder_hasil / "pred_test.npy", pred_test)
+            print(f"Prediksi test disimpan: {pred_test.shape}")
 
-    subprocess.run(
-        perintah,
-        cwd=AKAR,
-        check=True,
-    )
+        durasi = time.perf_counter() - mulai
+
+        print(f"Durasi training dan prediksi: {durasi:.2f} detik")
+
+        # Jalankan evaluator resmi dalam proses yang sama
+        from src.common import evaluate
+
+        argumen_awal = sys.argv.copy()
+
+        try:
+            sys.argv = [
+                "evaluate",
+                "--nim", NIM,
+                "--model", JALUR,
+                "--seed", str(args.seed),
+                "--pred-val", str(folder_hasil / "pred_val.npy"),
+                "--durasi", str(durasi),
+                "--perangkat", args.perangkat,
+            ]
+
+            if args.final:
+                sys.argv.extend([
+                    "--pred-test",
+                    str(folder_hasil / "pred_test.npy"),
+                ])
+
+            print("\nMenjalankan evaluator resmi...")
+            evaluate.main()
+
+        finally:
+            sys.argv = argumen_awal
+
+    finally:
+        # Pulihkan fungsi muat asli
+        data.muat = muat_asli
 
     print("\nProses Transformer selesai.")
+
+
+if __name__ == "__main__":
+    main()
