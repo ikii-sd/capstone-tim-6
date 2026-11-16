@@ -229,26 +229,33 @@ def catat_csv_metrik(out_dir: Path, hp: argparse.Namespace, hasil_eval: dict, pr
     cm = hitung_confusion_matrix(yva, pred_val)
 
     csv_path = out_dir / "tl_metrics.csv"
-    tulis_header = not csv_path.exists()
-    with csv_path.open("a", newline="", encoding="utf-8") as f:
+    header = [
+        "seed", "freeze_blocks", "epoch", "batch", "lr", "wd", "dropout",
+        "norm_emb", "val_acc", "val_macro_f1", "val_mae", "durasi_detik",
+        "perangkat", "data_hash", "confusion_matrix",
+    ]
+    baris_baru = [
+        str(hp.seed), str(hp.freeze_blocks), str(hp.epoch), str(hp.batch),
+        str(hp.lr), str(hp.wd), str(hp.dropout), str(not hp.tanpa_norm_emb),
+        str(hasil_eval["metrik"]["val_acc"]),
+        str(hasil_eval["metrik"]["val_macro_f1"]),
+        str(round(val_mae, 6)),
+        str(hasil_eval.get("durasi_detik", 0.0)),
+        str(hasil_eval.get("perangkat", hp.perangkat)),
+        str(hasil_eval.get("data_hash", "")),
+        json.dumps(cm),
+    ]
+    baris_lama: list[list[str]] = []
+    if csv_path.exists():
+        with csv_path.open("r", newline="", encoding="utf-8") as f:
+            pembaca = list(csv.reader(f))
+            if len(pembaca) > 1:
+                baris_lama = [b for b in pembaca[1:] if b and b[0] != str(hp.seed)]
+    baris_semua = sorted(baris_lama + [baris_baru], key=lambda b: int(b[0]))
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        if tulis_header:
-            w.writerow([
-                "seed", "freeze_blocks", "epoch", "batch", "lr", "wd", "dropout",
-                "norm_emb", "val_acc", "val_macro_f1", "val_mae", "durasi_detik",
-                "perangkat", "data_hash", "confusion_matrix",
-            ])
-        w.writerow([
-            hp.seed, hp.freeze_blocks, hp.epoch, hp.batch, hp.lr, hp.wd, hp.dropout,
-            not hp.tanpa_norm_emb,
-            hasil_eval["metrik"]["val_acc"],
-            hasil_eval["metrik"]["val_macro_f1"],
-            round(val_mae, 6),
-            hasil_eval.get("durasi_detik", 0.0),
-            hasil_eval.get("perangkat", hp.perangkat),
-            hasil_eval.get("data_hash", ""),
-            json.dumps(cm),
-        ])
+        w.writerow(header)
+        w.writerows(baris_semua)
 
 
 def main() -> None:
