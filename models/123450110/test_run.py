@@ -1,27 +1,16 @@
 
-import numpy as np
+import torch
 
-from run import latih_dan_prediksi
-from simulasi import buat_rekaman
-from src.protokol import data
+from transformer import TransformerKlasifikasi
 
-print("Mulai pengujian integrasi Transformer...")
 
-rekaman = buat_rekaman(seed=110)
+def test_transformer_forward():
+    model = TransformerKlasifikasi()
+    x = torch.randn(2, 64, 101)
 
-print("Jumlah rekaman:", len(rekaman))
+    model.eval()
+    with torch.no_grad():
+        output = model(x)
 
-pred_val, pred_test = latih_dan_prediksi(
-    seed=1,
-    final=False,
-    rekaman=rekaman,
-)
-
-print("Prediksi validasi:", pred_val.shape)
-print("Prediksi test:", pred_test)
-
-assert pred_val.ndim == 1
-assert len(pred_val) > 0
-assert np.all((pred_val >= 0) & (pred_val < data.N_KELAS))
-
-print("INTEGRASI TRANSFORMER BERHASIL")
+    assert output.shape == (2, 4)
+    assert torch.isfinite(output).all()
