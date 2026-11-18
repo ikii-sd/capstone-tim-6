@@ -1,5 +1,14 @@
 {
-  "sumber": "https://… (tautan dataset dari kartu Kasus tim di Workbench)",
-  "berkas": ["data/latih.csv"],
-  "catatan": "Isi pada Sprint 0: versi/tanggal unduh, jumlah baris, dan perubahan (bila ada). Berkas data sendiri tidak di-commit."
+  "sumber": "Data primer Meja Uji Ruang Cerdas 5 V, Tim 6, sesi-20261113-200606, 13 November 2026, 20.06-21.51 WIB",
+  "berkas": [
+    "data/label.csv",
+    "data/imu.csv",
+    "data/daya.csv",
+    "data/aktuator.csv",
+    "data/audio_index.csv",
+    "data/lingkungan.csv",
+    "data/digital.csv"
+  ],
+  "data_hash": "49995c7fa09a800959bab64782bb80fa",
+  "catatan": "Dataset eksperimen asli Tim 6, simulasi=false. Sesi otomatis selesai dengan 288 kondisi (24 kombinasi x 12 ulangan), durasi 20 detik per kondisi dan jeda sekitar 2 detik. Audio 16 kHz tersimpan dalam 106 file WAV. SHA-256 label.csv: fe963aafa87c7705fa3b6567049ff322eb1fd9121e58fe690fd367c5f5e90a4a. QC sementara: kanal arus pompa tidak tersedia di daya.csv, beberapa kondisi memiliki kekurangan sampel IMU, dan pemeriksaan mutu belum final. Data_hash tercantum berdasarkan tujuh CSV sesuai pemeriksaan Wawa. Dataset lengkap dan WAV disimpan terpisah dari GitHub. Lihat data/CATATAN-SESI.md untuk hasil pemeriksaan mutu."
 }
