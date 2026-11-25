@@ -1,0 +1,42 @@
+{
+  "konfigurasi": {
+    "seed": "1",
+    "freeze_blocks": "3",
+    "epoch": "25",
+    "batch": "64",
+    "lr": "0.001",
+    "wd": "0.0",
+    "dropout": "0.0",
+    "norm_emb": "False",
+    "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+    "kode_sha256": "b56e7d626fd96495b37d29790cf2400abc7575d41023914bd745ef4befc1c599"
+  },
+  "device": "cuda",
+  "val_mae": 0.05092592592592592,
+  "confusion_matrix": [
+    [
+      36,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      143,
+      0,
+      0
+    ],
+    [
+      0,
+      5,
+      174,
+      1
+    ],
+    [
+      0,
+      0,
+      15,
+      57
+    ]
+  ]
+}

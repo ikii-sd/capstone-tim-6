@@ -1,92 +1,105 @@
-# Catatan model 122450138 — Backlog #13 (Transfer Learning PANNs Cnn6)
+# Catatan model 122450138 — Transfer Learning PANNs Cnn6
 
-Model menerima masukan log-mel ternormalisasi dari `src.protokol.data.muat()` dengan bentuk
-`(N, 64, 101)` untuk jendela audio dua detik (16 kHz, 64 pita mel). *Backbone* pralatih
-yang digunakan adalah **PANNs Cnn6** ([bobot resmi AudioSet](https://zenodo.org/records/3987831),
-`Cnn6_mAP=0.343.pth`), diadaptasi agar menerima spektrogram log-mel tim secara langsung
-tanpa *frontend* gelombang mentah bawaan PANNs.
+## Arsitektur
 
-Pada konfigurasi akhir (`--freeze-blocks 3`), lapisan awal-menengah (`bn0` dan `conv_block1`
-hingga `conv_block3`) dibekukan untuk mempertahankan detektor fitur akustik dasar dari AudioSet
-sekaligus memungkinkan ekstraksi fitur *stem* dilakukan cukup sekali per bagian (*split*).
-Blok konvolusi tingkat tinggi (`conv_block4`, 256→512 kanal), lapisan proyeksi (`fc1`, 512→512),
-serta *classifier head* (`TLClassifierHead`: `Linear(512, 128) -> ReLU -> Dropout(0.3) -> Linear(128, 4)`)
-di-*fine-tune* bersama untuk memetakan representasi audio ke 4 kelas jumlah alat bersuara (0, 1, 2, 3).
+Model memakai bobot AudioSet resmi PANNs Cnn6 dari
+https://zenodo.org/records/3987831. Frontend waveform dilewati agar model menerima
+log-mel tim melalui `src.protokol.data.muat()`. Masukan berukuran `(N, 64, 101)`
+berasal dari audio 16 kHz dua detik. Skala dan bias awal PANNs dipakai dengan
+statistik normalisasi latih tim.
 
-## Alasan optimizer
+Konfigurasi utama membekukan `bn0` dan `conv_block1..3`. Fitur awal dihitung
+satu kali per split. `conv_block4`, `fc1`, serta classifier 512 → 128 → 4 dilatih
+bersama. Checkpoint dipilih dari akurasi validasi tertinggi selama 25 epoch.
 
-**AdamW** (`lr=0.001`, `weight_decay=0.01`) dipilih karena pemisahan peluruhan bobot (*decoupled
-weight decay*) menstabilkan proses *fine-tuning* lapisan pralatih (`conv_block4` dan `fc1`)
-yang memiliki skala gradien berbeda dari *classifier head* yang diinisialisasi acak. Pemilihan
-*checkpoint* terbaik didasarkan pada akurasi validasi tertinggi selama 25 epoch (`batch_size=64`).
+## Optimizer, regularisasi, dan tuning
 
-## Regularisasi
+AdamW memakai learning rate 0,001, weight decay 0,01, batch 64, dan dropout 0,3.
+Pembekuan lapisan awal membatasi parameter yang diperbarui. Weight decay dan
+dropout mengendalikan pembaruan bobot dan mengurangi overfitting. Konfigurasi ini
+melanjutkan pencarian hiperparameter yang dicatat pada commit `05fab61`.
 
-1. **Pembekuan bertingkat (*partial backbone freezing*, `--freeze-blocks 3`):** membekukan
-   `bn0` dan `conv_block1..3` mencegah *catastrophic forgetting* dan *overfitting* pada 3.024
-   jendela latih (7 ulangan).
-2. **Dropout (`p = 0.3`)** pada *classifier head* sebelum lapisan linier akhir.
-3. **Decoupled Weight Decay (`wd = 0.01`)** pada AdamW.
+Normalisasi embedding berbasis statistik latih diterapkan pada mode backbone
+beku penuh (`--freeze-blocks 4`). Mode partial fine-tuning memakai normalisasi
+identitas. Label Norm Emb pada catatan terdahulu telah diperbaiki sesuai kode.
+`--tanpa-norm-emb` memerlukan `--freeze-blocks 4`.
 
-## Pencarian hyperparameter (tabel)
+## Pengujian ulang tiga seed dan dua ablasi, 25 November 2026
 
-Eksperimen dilakukan pada dataset meja asli `sesi-20261113-200606` (latih: 3.024 jendela,
-validasi: 432 jendela, split per ulangan dengan seed 2026):
+Sesi primer `sesi-20261113-200606` memakai split tetap per ulangan dengan seed
+2026. Terdapat 3.024 jendela latih, 432 validasi, dan 1.728 uji. Seluruh angka
+berikut berasal dari validasi. Simpangan baku memakai pembagi n−1. Variasi seed
+menggambarkan variasi pelatihan pada satu ulangan validasi tetap.
 
-| Mode / Freeze | Epoch | Batch | LR | Weight Decay | Dropout | Norm Emb | val_acc (rerata 3 seed) | val_macro_f1 (rerata 3 seed) | val_mae | Durasi rata-rata |
-|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|
-| Beku penuh (`freeze=4`, awal Sprint 0) | 10 | 128 | 0.001 | 0.01 | 0.3 | Tidak | 0.7593 ± 0.0050 | 0.7970 ± 0.0048 | 0.2438 | 24 s |
-| Beku penuh (`freeze=4`) + Norm Emb | 20 | 64 | 0.001 | 0.01 | 0.3 | Ya | 0.8410 ± 0.0039 | 0.8593 ± 0.0040 | 0.1651 | 25 s |
-| Beku penuh (`freeze=4`) + Norm Emb | 40 | 64 | 0.001 | 0.01 | 0.3 | Ya | 0.8565 ± 0.0068 | 0.8723 ± 0.0049 | 0.1481 | 26 s |
-| Beku penuh (`freeze=4`) + Norm Emb | 60 | 64 | 0.001 | 0.01 | 0.3 | Ya | 0.8634 ± 0.0068 | 0.8746 ± 0.0044 | 0.1420 | 28 s |
-| Beku penuh (`freeze=4`) + Norm Emb | 40 | 64 | 0.003 | 0.01 | 0.3 | Ya | 0.8472 ± 0.0000 | 0.8619 ± 0.0027 | 0.1590 | 26 s |
-| **Partial FT (`freeze=3`, konfigurasi akhir)** | **25** | **64** | **0.001** | **0.01** | **0.3** | **Ya** | **0.9483 ± 0.0058** | **0.9524 ± 0.0068** | **0.0517** | **82 s** |
+Pelatihan ulang memakai NVIDIA GeForce GTX 1650 pada laptop. Metadata baru
+mencatat perangkat aktual. Durasi mencakup pemuatan data dan pelatihan sampai
+checkpoint tersimpan. Opsi `--device cpu` tersedia untuk pengukuran anggaran
+pelatihan CPU sesuai protokol atau kebutuhan pembimbing.
 
-## Ablation (>= 2)
+| Konfigurasi | Seed | Akurasi | Macro-F1 | MAE | Durasi (s) |
+|---|---:|---:|---:|---:|---:|
+| Partial fine-tuning | 1 | 0.942130 | 0.940936 | 0.057870 | 72.2 |
+| Partial fine-tuning | 2 | 0.939815 | 0.941399 | 0.060185 | 71.7 |
+| Partial fine-tuning | 3 | 0.962963 | 0.962599 | 0.037037 | 72.5 |
+| Partial fine-tuning | 1–3 | 0.948303 ± 0.012749 | 0.948311 ± 0.012376 | 0.051698 ± 0.012749 | 72.133333 ± 0.404145 |
+| Ablasi 1, backbone beku penuh | 1 | 0.844907 | 0.862451 | 0.164352 | 40.3 |
+| Ablasi 1, backbone beku penuh | 2 | 0.851852 | 0.866243 | 0.152778 | 41.3 |
+| Ablasi 1, backbone beku penuh | 3 | 0.854167 | 0.866560 | 0.150463 | 36.8 |
+| Ablasi 1, backbone beku penuh | 1–3 | 0.850309 ± 0.004819 | 0.865085 ± 0.002286 | 0.155864 ± 0.007441 | 39.466667 ± 2.362908 |
+| Ablasi 2, dropout dan weight decay 0 | 1 | 0.949074 | 0.946441 | 0.050926 | 70.6 |
+| Ablasi 2, dropout dan weight decay 0 | 2 | 0.928241 | 0.929841 | 0.076389 | 85.9 |
+| Ablasi 2, dropout dan weight decay 0 | 3 | 0.946759 | 0.947190 | 0.053241 | 75.7 |
+| Ablasi 2, dropout dan weight decay 0 | 1–3 | 0.941358 ± 0.011418 | 0.941157 ± 0.009807 | 0.060185 ± 0.014080 | 77.400000 ± 7.790379 |
 
-1. **Ablasi 1 — Pembekuan penuh *backbone* (`--freeze-blocks 4`) vs *Partial Fine-Tuning* (`--freeze-blocks 3`):**
-   Membekukan `conv_block4` dan `fc1` menurunkan `val_acc` dari **0.9483 ± 0.0058** menjadi
-   **0.8248 ± 0.0011** (atau **0.8565 ± 0.0068** pada 40 epoch) dan menaikkan MAE dari **0.0517**
-   menjadi **0.1481–0.1813**. Hal ini membuktikan bahwa adaptasi blok konvolusi terakhir (`conv_block4`)
-   sangat penting karena distribusi log-mel tim dinormalisasi per pita (mean 0, std 1), berbeda
-   dari skala desibel mentah saat PANNs dilatih pada AudioSet.
-2. **Ablasi 2 — Tanpa regularisasi Dropout & Weight Decay (`--dropout 0.0 --wd 0.0`):**
-   Menghilangkan dropout dan weight decay pada mode *partial fine-tuning* menurunkan kestabilan
-   dan akurasi validasi rerata menjadi **0.9360 ± 0.0039** (`val_macro_f1` **0.9347 ± 0.0043**,
-   MAE **0.0640**) dibanding konfigurasi penuh (**0.9483 ± 0.0058**).
-3. **Ablasi 3 — Tanpa normalisasi embedding pada ekstraktor beku (`--freeze-blocks 4 --tanpa-norm-emb`):**
-   Tanpa standarisasi *embedding* berbasis data latih, akurasi validasi turun dari **0.8410**
-   menjadi **0.7593 ± 0.0050** karena magnitudo aktivasi ReLU keluaran `fc1` belum terpusat di nol.
+Ablasi pertama membekukan seluruh backbone pada 25 epoch. Ablasi kedua
+menghilangkan dropout dan weight decay secara bersama. Kontribusi individual
+kedua regularisasi memerlukan eksperimen terpisah. Pada pengujian ulang ini,
+pembekuan penuh memiliki akurasi rerata lebih rendah dibanding partial FT.
 
-## Hasil 3 seed konfigurasi akhir
+## Analisis kesalahan dan ONNX
 
-Perintah reproduksi:
+Pada gabungan prediksi tiga seed utama, kesalahan terbanyak adalah kelas 3 ke 2 sebanyak 37; kelas 1 ke 2 sebanyak 11; kelas 2 ke 3 sebanyak 10.
+Hitungan tersebut menjumlahkan tiga prediksi pada set validasi yang sama.
+Matriks konfusi tiap seed tersimpan dalam metadata eksperimen.
+
+ONNX seed 1 berukuran 18103.92 KiB
+(17.68 MiB). Prediksi kelas ONNX dan PyTorch cocok
+100.00% pada 432 jendela validasi, dengan
+akurasi 0.942130, MAE 0.057870, dan selisih logit maksimum
+3.34e-06. Latensi CPU batch 1 memiliki rerata 21.700 ms
+dan p95 25.502 ms. Pengukuran memakai satu thread ONNX Runtime,
+10 warm-up dan 100 pengulangan. Cakupan pengukuran adalah log-mel ternormalisasi
+ke logits. Perekaman dan praproses audio memerlukan pengukuran terpisah.
+
+
+## Reproduksi
 
 ```powershell
 python models/122450138/run.py --seed 1
 python models/122450138/run.py --seed 2
 python models/122450138/run.py --seed 3
+python models/122450138/run.py --seed 1 --freeze-blocks 4
+python models/122450138/run.py --seed 1 --dropout 0 --wd 0
+python -m pip install onnx onnxruntime
+python models/122450138/export_onnx.py --out data/tl_panns_cnn6.onnx
 ```
 
-| Seed | val_acc | val_macro_f1 | val_mae | Durasi (s) | Confusion Matrix Validasi (baris=asli 0..3, kolom=prediksi 0..3) |
-|---:|---:|---:|---:|---:|---|
-| 1 | 0.946759 | 0.951703 | 0.053241 | 78.3 | `[[36, 0, 0, 0], [1, 131, 12, 0], [0, 0, 180, 0], [0, 0, 10, 62]]` |
-| 2 | 0.942130 | 0.944408 | 0.057870 | 83.8 | `[[36, 0, 0, 0], [0, 137, 7, 0], [0, 0, 174, 6], [0, 0, 12, 60]]` |
-| 3 | 0.956019 | 0.961027 | 0.043981 | 82.8 | `[[36, 0, 0, 0], [1, 132, 11, 0], [0, 0, 180, 0], [0, 0, 7, 65]]` |
-| **Rerata ± SB** | **0.9483 ± 0.0058** | **0.9524 ± 0.0068** | **0.0517 ± 0.0058** | **81.6 ± 2.4** | — |
+Ulangi dua perintah ablasi untuk seed 2 dan 3. `tl_metrics.csv` mempertahankan
+kombinasi konfigurasi, seed, dan hash data. `results/122450138/experiments/`
+menyimpan `pred_val.npy`, `metrics.json`, dan `run.json` per eksperimen.
+Metadata memuat konfigurasi, perangkat, hash kode, MAE, serta matriks konfusi.
+Hasil utama di direktori NIM mengikuti kontrak evaluator dosen dan saat ini
+memakai seed 1.
 
-Seluruh metrik per run terekam otomatis di `results/122450138/tl_metrics.csv` dan `results/122450138/metrics.json`.
+`tl_best.pt` adalah checkpoint lokal terakhir dan diabaikan Git. Ekspor
+memerlukan checkpoint pelatihan. `onnx_verification.json` mencatat seed, hash
+checkpoint dan ONNX, ukuran, kesesuaian prediksi, serta latensi CPU.
+Berkas ONNX end-to-end di `data/` diabaikan Git dan dapat dibuat ulang.
 
-## Ekspor dan verifikasi ONNX
+## Batas evaluasi
 
-Untuk mengekspor model ke format ONNX (baik *end-to-end* dari log-mel `(B, 64, 101)` ke `logits (B, 4)`
-maupun khusus *classifier head* `(B, 512)` ke `logits (B, 4)`) dan memverifikasi kesamaan prediksinya
-dengan `onnxruntime`:
-
-```powershell
-python models/122450138/export_onnx.py
-```
-
-Hasil verifikasi pada 432 jendela validasi menunjukkan kecocokan prediksi kelas **100,00%** antara
-PyTorch dan ONNX Runtime (`val_acc = 0.9560` pada checkpoint seed 3, selisih logit maksimum `1.91e-05`,
-ukuran ONNX *end-to-end* `17.68 MiB`, ukuran ONNX *head-only* `259.10 KiB`).
+Hash evaluator saat pengujian adalah `ffcb1966eec8bf6b285607a0e19e97c0`. Manifest saat ini
+mencantumkan tujuh CSV. Penjaga Data perlu meninjau identitas WAV agar hash
+mencakup audio yang dipakai model. Perubahan manifest memerlukan penghitungan
+ulang artefak semua anggota. Metrik resmi klasifikasi starter berupa akurasi
+dan macro-F1. MAE kasus tim dicatat terpisah dalam metadata eksperimen.
