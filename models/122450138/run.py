@@ -6,7 +6,7 @@ Opsi tambahan untuk pencarian hyperparameter, ablation, dan smoke test:
     python models/122450138/run.py --smoke-test
     python models/122450138/run.py --seed 1 --freeze-blocks 4
     python models/122450138/run.py --seed 1 --dropout 0.0 --wd 0.0
-    python models/122450138/run.py --seed 1 --tanpa-norm-emb
+    python models/122450138/run.py --seed 1 --freeze-blocks 4 --tanpa-norm-emb
 """
 # Model milik 122450138 (Ahmad Rizqi) — Backlog #13 Transfer Learning
 from __future__ import annotations
@@ -15,6 +15,10 @@ import argparse
 import copy
 import csv
 import json
+import hashlib
+import os
+import shutil
+import tempfile
 import subprocess
 import sys
 import time
@@ -25,6 +29,7 @@ import numpy as np
 AKAR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(AKAR))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from src.common import manifest, split  # noqa: E402
 from src.protokol import data  # noqa: E402  (protokol tim yang dibekukan)
 
 NIM = Path(__file__).resolve().parent.name     # nama folder = NIM (122450138)
@@ -70,7 +75,7 @@ def latih_dan_prediksi(
     if hp is None:
         hp = argparse.Namespace(
             epoch=25, batch=64, lr=1e-3, wd=1e-2, dropout=0.3,
-            freeze_blocks=3, tanpa_norm_emb=False,
+            freeze_blocks=3, tanpa_norm_emb=False, device="auto",
         )
 
     torch.manual_seed(seed)
@@ -78,7 +83,15 @@ def latih_dan_prediksi(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pilihan_device = getattr(hp, "device", "auto")
+    device = torch.device(
+        "cuda" if pilihan_device == "auto" and torch.cuda.is_available()
+        else "cpu" if pilihan_device == "auto" else pilihan_device
+    )
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA diminta tetapi tidak tersedia.")
+    hp.perangkat = torch.cuda.get_device_name(device) if device.type == "cuda" else "cpu laptop"
+    hp.device_aktual = str(device)
     Xtr, ytr, Xva, yva, Xte, _ = data.muat()
 
     backbone = PannsCnn6.pralatih().to(device)
@@ -215,6 +228,8 @@ def latih_dan_prediksi(
             "emb_std": emb_std.cpu(),
             "dropout": hp.dropout,
             "freeze_blocks": hp.freeze_blocks,
+            "norm_emb": hp.freeze_blocks == 4 and not hp.tanpa_norm_emb,
+            "data_hash": manifest.data_hash(f"split:{split.SEED_SPLIT}".encode()),
         },
         ckpt_path,
     )
@@ -236,7 +251,7 @@ def catat_csv_metrik(out_dir: Path, hp: argparse.Namespace, hasil_eval: dict, pr
     ]
     baris_baru = [
         str(hp.seed), str(hp.freeze_blocks), str(hp.epoch), str(hp.batch),
-        str(hp.lr), str(hp.wd), str(hp.dropout), str(not hp.tanpa_norm_emb),
+        str(hp.lr), str(hp.wd), str(hp.dropout), str(hp.freeze_blocks == 4 and not hp.tanpa_norm_emb),
         str(hasil_eval["metrik"]["val_acc"]),
         str(hasil_eval["metrik"]["val_macro_f1"]),
         str(round(val_mae, 6)),
@@ -245,24 +260,66 @@ def catat_csv_metrik(out_dir: Path, hp: argparse.Namespace, hasil_eval: dict, pr
         str(hasil_eval.get("data_hash", "")),
         json.dumps(cm),
     ]
-    baris_lama: list[list[str]] = []
+    # Seed yang sama boleh muncul pada konfigurasi atau versi data berbeda.
+    kolom_kunci = list(range(8)) + [13]
+
+    def kunci(baris):
+        return tuple(baris[i] for i in kolom_kunci)
+
+    baris_lama = []
     if csv_path.exists():
         with csv_path.open("r", newline="", encoding="utf-8") as f:
-            pembaca = list(csv.reader(f))
-            if len(pembaca) > 1:
-                baris_lama = [b for b in pembaca[1:] if b and b[0] != str(hp.seed)]
-    baris_semua = sorted(baris_lama + [baris_baru], key=lambda b: int(b[0]))
-    with csv_path.open("w", newline="", encoding="utf-8") as f:
+            pembaca = csv.reader(f)
+            if next(pembaca, None) != header:
+                raise ValueError(f"Header CSV tidak sesuai: {csv_path}")
+            for baris in pembaca:
+                if len(baris) != len(header):
+                    raise ValueError(f"Baris CSV tidak lengkap: {csv_path}")
+                if baris[1] == "3":
+                    baris[7] = "False"
+                if kunci(baris) != kunci(baris_baru):
+                    baris_lama.append(baris)
+    baris_semua = sorted(baris_lama + [baris_baru], key=kunci)
+    with tempfile.NamedTemporaryFile(
+        mode="w", newline="", encoding="utf-8", dir=out_dir, delete=False,
+    ) as f:
         w = csv.writer(f)
         w.writerow(header)
         w.writerows(baris_semua)
+        sementara = f.name
+    os.replace(sementara, csv_path)
+
+    konfigurasi = dict(zip(header[:8], baris_baru[:8]))
+    konfigurasi["data_hash"] = hasil_eval["data_hash"]
+    kode = hashlib.sha256()
+    for nama in ("run.py", "model.py"):
+        kode.update(Path(__file__).with_name(nama).read_bytes())
+    konfigurasi["kode_sha256"] = kode.hexdigest()
+    identitas = {k: v for k, v in konfigurasi.items() if k != "seed"}
+    identitas_json = json.dumps(identitas, sort_keys=True).encode()
+    eksperimen = hashlib.sha256(identitas_json).hexdigest()[:12]
+    arsip = out_dir / "experiments" / eksperimen / f"seed_{hp.seed}"
+    arsip.mkdir(parents=True, exist_ok=True)
+    np.save(arsip / "pred_val.npy", pred_val)
+    shutil.copy2(out_dir / "metrics.json", arsip / "metrics.json")
+    catatan = {
+        "konfigurasi": konfigurasi, "device": hp.device_aktual,
+        "val_mae": val_mae, "confusion_matrix": cm,
+    }
+    (arsip / "run.json").write_text(
+        json.dumps(catatan, indent=2) + "\n", encoding="utf-8",
+    )
+    if hp.final:
+        shutil.copy2(out_dir / "pred_test.npy", arsip / "pred_test.npy")
+    print(f"Arsip eksperimen: {arsip.relative_to(AKAR)}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=1, help="Seed eksperimen (wajib untuk run evaluasi)")
     ap.add_argument("--final", action="store_true", help="sprint terakhir: evaluasi data uji sekali")
-    ap.add_argument("--perangkat", default="cpu laptop")
+    ap.add_argument("--perangkat", default="cpu laptop", help="label perangkat, diperbarui dari perangkat aktual")
+    ap.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     ap.add_argument("--epoch", type=int, default=25)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -274,10 +331,17 @@ def main() -> None:
     ap.add_argument("--smoke-test", action="store_true", help="uji cepat arsitektur pada tensor sintetis")
     a = ap.parse_args()
 
+    if a.epoch < 1 or a.batch < 1 or a.lr <= 0 or a.wd < 0 or not 0 <= a.dropout < 1:
+        ap.error("epoch/batch/lr harus positif, wd >= 0, dan 0 <= dropout < 1")
+    if a.freeze_blocks == 3 and a.tanpa_norm_emb:
+        ap.error("--tanpa-norm-emb hanya berlaku untuk --freeze-blocks 4")
+
     if a.smoke_test:
         smoke_test()
         return
 
+    if os.environ.get("DATA_SINTETIS") == "1":
+        ap.error("DATA_SINTETIS=1 aktif. Gunakan --smoke-test untuk uji arsitektur.")
     t0 = time.time()
     pred_val, pred_test = latih_dan_prediksi(a.seed, a.final, a)
     durasi = time.time() - t0
