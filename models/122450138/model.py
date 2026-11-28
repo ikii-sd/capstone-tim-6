@@ -1,4 +1,6 @@
-"""Ekstraktor PANNs Cnn6 beku dan classifier untuk empat kelas Tim 6."""
+"""Ekstraktor PANNs Cnn6 pralatih dan classifier untuk empat kelas Tim 6."""
+from __future__ import annotations
+
 from pathlib import Path
 
 import torch
@@ -55,27 +57,56 @@ class PannsCnn6(nn.Module):
         model.load_state_dict({k: bobot[k] for k in model.state_dict()})
         return model.requires_grad_(False).eval()
 
-    def forward(self, logmel: torch.Tensor) -> torch.Tensor:
-        if logmel.ndim != 3 or logmel.shape[1] != 64 or logmel.shape[2] < 16:
-            raise ValueError("Masukan PANNs harus berbentuk (N, 64, T) dengan T >= 16.")
+    def forward_stem3(self, logmel: torch.Tensor) -> torch.Tensor:
+        """Ekstraksi fitur bertingkat hingga conv_block3: (N, 64, T) -> (N, 256, T//8, 8)."""
+        if not torch.jit.is_tracing():
+            if logmel.ndim != 3 or logmel.shape[1] != 64 or logmel.shape[2] < 16:
+                raise ValueError("Masukan PANNs harus berbentuk (N, 64, T) dengan T >= 16.")
         x = logmel * self.bn0.weight[None, :, None] + self.bn0.bias[None, :, None]
         x = x.transpose(1, 2).unsqueeze(1)  # (N, 1, waktu, mel)
         x = self.conv_block1(x)
         x = self.conv_block2(x)
-        x = self.conv_block3(x)
-        x = self.conv_block4(x).mean(dim=3)
+        return self.conv_block3(x)
+
+    def forward_top(self, z3: torch.Tensor) -> torch.Tensor:
+        """Bagian atas Cnn6 (conv_block4 + global temporal pooling + fc1): (N, 256, T', 8) -> (N, 512)."""
+        x = self.conv_block4(z3).mean(dim=3)
         return self.fc1(x.amax(dim=2) + x.mean(dim=2)).relu()
+
+    def forward(self, logmel: torch.Tensor) -> torch.Tensor:
+        return self.forward_top(self.forward_stem3(logmel))
 
 
 class TLClassifierHead(nn.Module):
-    def __init__(self, embedding_dim: int = 512):
+    def __init__(self, embedding_dim: int = 512, dropout: float = 0.3):
         super().__init__()
         self.classifier = nn.Sequential(
             nn.Linear(embedding_dim, 128),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout),
             nn.Linear(128, 4),
         )
 
     def forward(self, embedding: torch.Tensor) -> torch.Tensor:
         return self.classifier(embedding)
+
+
+class PannsCnn6EndToEnd(nn.Module):
+    """Bungkus PannsCnn6 + normalisasi embedding latih + TLClassifierHead untuk inferensi/ONNX."""
+
+    def __init__(self, backbone: PannsCnn6, head: TLClassifierHead,
+                 emb_mean: torch.Tensor | None = None, emb_std: torch.Tensor | None = None):
+        super().__init__()
+        self.backbone = backbone
+        self.head = head
+        if emb_mean is None:
+            emb_mean = torch.zeros(1, backbone.dim_embedding)
+        if emb_std is None:
+            emb_std = torch.ones(1, backbone.dim_embedding)
+        self.register_buffer("emb_mean", emb_mean.reshape(1, -1).float())
+        self.register_buffer("emb_std", emb_std.reshape(1, -1).float())
+
+    def forward(self, logmel: torch.Tensor) -> torch.Tensor:
+        emb = self.backbone(logmel)
+        emb = (emb - self.emb_mean) / self.emb_std
+        return self.head(emb)

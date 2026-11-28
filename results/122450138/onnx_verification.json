@@ -1,0 +1,25 @@
+{
+  "seed": 1,
+  "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "training_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "checkpoint_sha256": "5ff383510db5dc8e0519483d741007193fe7c8008b2a45f715546f56ce2815e5",
+  "onnx_sha256": "c2365847136c30605a491f5beaf9f11eaf44031bdbb7fb931425a6cceb5fc0b2",
+  "ukuran_bytes": 18538417,
+  "n_val": 432,
+  "kecocokan_prediksi": 1.0,
+  "val_acc": 0.9421296296296297,
+  "val_mae": 0.05787037037037037,
+  "selisih_logit_maks": 3.337860107421875e-06,
+  "latensi_ms": {
+    "mean": 21.70034800000394,
+    "p50": 21.142249999911655,
+    "p95": 25.502015000097344,
+    "n": 100,
+    "warmup": 10,
+    "batch": 1,
+    "threads": 1,
+    "provider": "CPUExecutionProvider",
+    "ort_version": "1.32.0",
+    "cakupan": "inferensi log-mel ternormalisasi ke logits, praproses audio terpisah"
+  }
+}

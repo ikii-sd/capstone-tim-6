@@ -1,0 +1,13 @@
+{
+  "metrik": {
+    "val_acc": 0.962963,
+    "val_macro_f1": 0.962599
+  },
+  "seed": 3,
+  "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "perangkat": "NVIDIA GeForce GTX 1650",
+  "model": "tl",
+  "n_val": 432,
+  "n_test": 0,
+  "durasi_detik": 72.5
+}
