@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "jenis": "validasi lokal memakai evaluator resmi; bukan status Local Runner",
+  "waktu_wib": "2026-11-28T16:21:13.366509+07:00",
+  "head_saat_validasi": "300114d7a899eb3d06d7448c004e7db3fa3cfe42",
+  "manifest_sha256": "26327e64cbfe933a1e18de7779568b62b3f595ce6527e4ea53c1924931b79745",
+  "manifest_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "computed_evaluator_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "metrics_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "parameter_hash": "split:2026",
+  "berkas_manifest": [
+    "data/label.csv",
+    "data/imu.csv",
+    "data/daya.csv",
+    "data/aktuator.csv",
+    "data/audio_index.csv",
+    "data/lingkungan.csv",
+    "data/digital.csv"
+  ],
+  "metrics_sha256": "aad0d074d64f6815a89a14c70ed93e774c42c755757a029f472b13b543f0a316",
+  "pred_sha256": "eb53e5fd523554cee0f980fefbc2b7d1bbebce200d1ec363d6b7b4bff50bcb56",
+  "metrics": {
+    "metrik": {
+      "val_acc": 0.94213,
+      "val_macro_f1": 0.940936
+    },
+    "seed": 1,
+    "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+    "perangkat": "NVIDIA GeForce GTX 1650",
+    "model": "tl",
+    "n_val": 432,
+    "n_test": 0,
+    "durasi_detik": 72.2
+  },
+  "konfigurasi": {
+    "seed": "1",
+    "freeze_blocks": "3",
+    "epoch": "25",
+    "batch": "64",
+    "lr": "0.001",
+    "wd": "0.01",
+    "dropout": "0.3",
+    "norm_emb": "False",
+    "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+    "kode_sha256": "b56e7d626fd96495b37d29790cf2400abc7575d41023914bd745ef4befc1c599"
+  },
+  "runs": [
+    {
+      "seed": 1,
+      "arsip": "results/122450138/experiments/957ac563eaef/seed_1",
+      "val_acc": 0.9421296296296297,
+      "val_macro_f1": 0.9409364306627641,
+      "val_mae": 0.05787037037037037,
+      "pred_sha256": "eb53e5fd523554cee0f980fefbc2b7d1bbebce200d1ec363d6b7b4bff50bcb56",
+      "metrics_sha256": "aad0d074d64f6815a89a14c70ed93e774c42c755757a029f472b13b543f0a316",
+      "run_sha256": "736b1b008c3b96a9156f660a1ddba07bd17ef9c1227708f38a71f083a7c25ea4"
+    },
+    {
+      "seed": 2,
+      "arsip": "results/122450138/experiments/957ac563eaef/seed_2",
+      "val_acc": 0.9398148148148148,
+      "val_macro_f1": 0.9413989977819764,
+      "val_mae": 0.06018518518518518,
+      "pred_sha256": "256b00d435c165b390ab1f44166d9e5dfa25fe1ab75541a8d864f01fce5a3ba0",
+      "metrics_sha256": "516cbe4676032ed0bcc815f7ec426dc68cacb8b021e59bcfd32eb17ed46a1b14",
+      "run_sha256": "7027f28401ed517a2313ff6b4132fada9c53607e5a36071237bcc8e2ccac16e1"
+    },
+    {
+      "seed": 3,
+      "arsip": "results/122450138/experiments/957ac563eaef/seed_3",
+      "val_acc": 0.9629629629629629,
+      "val_macro_f1": 0.9625994771116727,
+      "val_mae": 0.037037037037037035,
+      "pred_sha256": "9b5ad8a12f535a3c8e4be2e49fda8eacb7ab68564b6a82437b07de430f306325",
+      "metrics_sha256": "7f3449a3b1038faac57302c4b7a6c0e30ec339698e03d622e08adee5adbcca51",
+      "run_sha256": "bd4d257c0b40884dde75227ec7f643de5ae9c3a02c8647411f34c7ca9e573293"
+    }
+  ],
+  "ringkasan_tiga_seed": {
+    "val_acc": {
+      "mean": 0.9483024691358025,
+      "std_sample": 0.012749005896495585
+    },
+    "val_macro_f1": {
+      "mean": 0.9483116351854711,
+      "std_sample": 0.012375795419529111
+    },
+    "val_mae": {
+      "mean": 0.05169753086419753,
+      "std_sample": 0.012749005896495608
+    }
+  }
+}

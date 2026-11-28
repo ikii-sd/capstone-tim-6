@@ -116,3 +116,106 @@ Arsip lengkap dan tautan penyimpanan tim dicatat di Papan Tim Workbench.
 
 ## Status akhir
 **QC sementara — belum final.** Kelengkapan rancangan 288 kondisi terpenuhi, tetapi validasi arus pompa dan validasi QC audio secara menyeluruh masih terbuka meskipun pemeriksaan teknis Boby telah dilaporkan. Keputusan pengecualian kondisi perlu diperbarui setelah tindak lanjut.
+
+
+## Verifikasi Lanjutan QC — 28 November 2026
+
+### 1. Verifikasi jumlah kondisi dan kelengkapan sesi
+
+Pemeriksaan ulang dilakukan menggunakan `src/qc/verifikasi_qc.py` terhadap dataset asli `sesi-20261113-200606`.
+
+| Pemeriksaan | Rencana | Aktual |
+|---|---:|---:|
+| Jumlah kondisi | 288 | 288 |
+| Jumlah kombinasi faktor | 24 | 24 |
+| Ulangan per kombinasi | 12 | 12 |
+| Nomor kondisi unik | 288 | 288 |
+| Kondisi duplikat | 0 | 0 |
+
+Seluruh kombinasi faktor kipas, pompa, buzzer, dan lampu memiliki 12 ulangan. Tidak ditemukan kondisi yang hilang maupun duplikat.
+
+Log sesi mencatat kondisi 288/288 selesai pada 13 November 2026 pukul 21:51:40.906 dan berakhir dengan tulisan `Selesai` pada pukul 21:51:44.174.
+
+Bukti pemeriksaan:
+- `reports/qc/qc_kombinasi.csv`
+- `reports/qc/bukti_log_sesi.txt`
+- `reports/qc/hasil_verifikasi.txt`
+
+### 2. Pemeriksaan kualitas audio
+
+Pemeriksaan terhadap 106 file WAV dan 288 kondisi menghasilkan temuan berikut:
+
+- Seluruh file WAV dapat dibaca dengan format mono dan laju sampel 16.000 Hz.
+- Tidak ditemukan kondisi dengan audio hening total.
+- Clipping audio sebesar 0% pada seluruh kondisi.
+- Kekurangan sampel audio maksimal 21 sampel per kondisi atau sekitar 1,31 ms.
+
+Bukti pemeriksaan per kondisi tersedia pada `reports/qc/qc_kondisi.csv`.
+
+### 3. Pemeriksaan alternatif respons akustik pompa
+
+Pemeriksaan arus pompa tidak dapat dilakukan karena `daya.csv` hanya memiliki kanal arus kipas. Sebagai alternatif, dilakukan analisis energi spektral audio menggunakan Welch Power Spectral Density (PSD) pada rentang frekuensi 500–1500 Hz.
+
+Satu detik pertama setiap kondisi tidak digunakan untuk menghindari fase transisi aktuator. Kondisi pompa 0 dan pompa 200 dibandingkan secara berpasangan dengan taraf kipas, buzzer, lampu, dan nomor ulangan yang sama.
+
+| Parameter | Seluruh pasangan | Pompa terisolasi |
+|---|---:|---:|
+| Jumlah pasangan | 144 | 24 |
+| Pasangan dengan peningkatan energi | 81 | 21 |
+| Persentase peningkatan | 56,25% | 87,50% |
+| Rata-rata selisih energi | +2,06 dB | +6,94 dB |
+| Median selisih energi | +0,78 dB | +6,01 dB |
+
+Pada pemeriksaan pompa terisolasi, kipas dan buzzer berada pada kondisi mati sehingga pengaruh suara alat lain dapat diminimalkan.
+
+Contoh hasil perbandingan:
+
+| Kondisi pompa mati | Kondisi pompa menyala | Selisih energi |
+|---:|---:|---:|
+| 33 | 9 | +21,11 dB |
+| 64 | 34 | +21,31 dB |
+| 235 | 42 | +14,31 dB |
+| 41 | 21 | +12,92 dB |
+| 279 | 237 | +5,89 dB |
+
+Hasil tersebut memberikan bukti akustik yang mendukung bahwa pompa menghasilkan suara pada sebagian besar pasangan kondisi terisolasi. Namun, respons akustik tidak konsisten pada seluruh pasangan sehingga pemeriksaan ini belum dapat memastikan pompa berfungsi normal pada setiap kondisi.
+
+Bukti pemeriksaan tersedia pada `reports/qc/qc_pasangan_pompa.csv`.
+
+### 4. Kondisi yang dikeluarkan
+
+| Keterangan | Jumlah |
+|---|---:|
+| Kondisi awal | 288 |
+| Kondisi yang dikeluarkan berdasarkan QC teknis audio | 0 |
+| Kondisi yang dipertahankan sementara | 288 |
+
+Tidak dilakukan eksklusi berdasarkan pemeriksaan teknis audio karena seluruh rekaman dapat dibaca, tidak ditemukan audio hening total maupun clipping, dan kekurangan sampel relatif kecil.
+
+Perbedaan respons energi akustik pompa tidak langsung dijadikan dasar eksklusi karena belum cukup untuk memastikan kegagalan pompa pada kondisi tertentu.
+
+Keputusan eksklusi berdasarkan gangguan fisik selama sesi masih memerlukan konfirmasi lembar sesi atau pengelola meja.
+
+### 5. Verifikasi integritas dataset
+
+- SHA-256 `label.csv`: `fe963aafa87c7705fa3b6567049ff322eb1fd9121e58fe690fd367c5f5e90a4a`
+- Data hash tanpa parameter split: `49995c7fa09a800959bab64782bb80fa`
+- Data hash dengan parameter split 2026: `ffcb1966eec8bf6b285607a0e19e97c0`
+
+Pemeriksaan checksum terhadap manifest sesi asli menunjukkan seluruh berkas yang diperiksa sesuai, kecuali `log.txt`. Penyebab perbedaan checksum log belum terkonfirmasi.
+
+Tidak dilakukan perubahan terhadap dataset asli maupun nilai data hash.
+
+### 6. Reproduksi pemeriksaan
+
+Pemeriksaan dapat dijalankan kembali dari direktori utama repository menggunakan:
+
+```bash
+python src/qc/verifikasi_qc.py "PATH_FOLDER_SESI_ASLI" reports/qc
+```
+
+Folder sesi asli harus berisi CSV sensor, manifest sesi, dan rekaman audio WAV. Seluruh hasil pemeriksaan disimpan pada direktori `reports/qc/`.
+
+### 7. Kesimpulan QC
+
+Jumlah kondisi eksperimen telah terverifikasi sesuai rancangan, yaitu 288 kondisi. Pemeriksaan alternatif berbasis audio memberikan bukti pendukung respons akustik pompa meskipun kanal arus pompa tidak tersedia. Seluruh kondisi dipertahankan sementara berdasarkan hasil pemeriksaan teknis audio, dengan keterbatasan validasi pompa dan gangguan fisik sesi tetap didokumentasikan.
