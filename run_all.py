@@ -31,7 +31,7 @@ def main() -> None:
     a = ap.parse_args()
 
     if not a.tanpa_baseline:
-        jalankan([sys.executable, "-m", "src.common.baseline", "--seed", str(a.seeds[0])])
+        jalankan([sys.executable, "-m", "src.baseline.mfcc_rf", "--seed", str(a.seeds[0])])
     anggota = sorted(p for p in (AKAR / "models").iterdir() if p.is_dir() and (p / "run.py").exists()
                      and p.name != "TEMPLATE" and (a.hanya is None or p.name in a.hanya))
     ringkas: dict[str, list[dict]] = {}
@@ -48,7 +48,7 @@ def main() -> None:
     bl = AKAR / "results" / "baseline" / "metrics.json"
     if bl.exists():
         h = json.loads(bl.read_text("utf-8")); mt = h["metrik"]
-        baris.append(f"| baseline | mlp dosen | {h['seed']} | {mt['val_acc']:.4f} | {mt['val_macro_f1']:.4f} | — | {h.get('durasi_detik', 0):.0f} | {h.get('perangkat', '')} |")
+        baris.append(f"| baseline | {h.get('model','')} | {h['seed']} | {mt['val_acc']:.4f} | {mt['val_macro_f1']:.4f} | — | {h.get('durasi_detik', 0):.0f} | {h.get('perangkat', '')} |")
     for nim, daftar in ringkas.items():
         for h in daftar:
             mt = h["metrik"]
