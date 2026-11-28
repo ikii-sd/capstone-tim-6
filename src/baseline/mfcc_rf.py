@@ -13,6 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, mean_absolute_error, f1_score
 
 from src.common.manifest import data_hash
+from src.common.split import SEED_SPLIT
 from src.protokol import data as protokol
 
 
@@ -70,7 +71,7 @@ def main():
     grup = np.asarray(grup)
 
     latih, val, uji = protokol.bagi_ulangan(
-        grup, seed=args.seed
+        grup, seed=SEED_SPLIT
     )
 
     m_latih = np.isin(grup, latih)
@@ -101,7 +102,7 @@ def main():
     hasil = {
         "metrik": metrik,
         "seed": args.seed,
-        "data_hash": data_hash(),
+        "data_hash": data_hash(f"split:{SEED_SPLIT}".encode()),
         "perangkat": "cpu laptop",
         "model": "mfcc_mean_std_random_forest",
         "n_val": int(m_val.sum()),
