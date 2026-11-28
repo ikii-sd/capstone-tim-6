@@ -1,0 +1,5 @@
+﻿2026-11-13T21:41:24.852  kondisi 260/288 selesai
+2026-11-13T21:45:04.873  kondisi 270/288 selesai
+2026-11-13T21:48:44.891  kondisi 280/288 selesai
+2026-11-13T21:51:40.906  kondisi 288/288 selesai
+2026-11-13T21:51:44.174  Selesai. Data di /home/sditeraciv/meja-uji-5v/data/tim06/sesi-20261113-200606
