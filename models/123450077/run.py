@@ -344,6 +344,33 @@ def main():
     finally:
         sys.argv = argv_awal
 
+    # Tambahkan MAE tanpa mengubah evaluator resmi tim.
+    import json
+    from src.protokol.data import muat
+
+    _, _, _, y_val, _, _ = muat()
+
+    y_val = np.asarray(y_val, dtype=np.int64)
+    pred_val = np.asarray(pred_val, dtype=np.int64)
+
+    assert y_val.shape == pred_val.shape
+
+    val_mae = float(np.abs(y_val - pred_val).mean())
+
+    file_metrics = output_dir / "metrics.json"
+
+    metrics = json.loads(
+        file_metrics.read_text(encoding="utf-8")
+    )
+
+    metrics["metrik"]["val_mae"] = round(val_mae, 6)
+
+    file_metrics.write_text(
+        json.dumps(metrics, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8"
+    )
+
+    print("Validation MAE:", round(val_mae, 6))
     print("Proses run.py selesai!")
 
 
