@@ -1,4 +1,5 @@
 
+import subprocess
 from pathlib import Path
 import argparse
 import time
@@ -226,12 +227,28 @@ def main():
 
     durasi = time.time() - waktu_mulai
 
+    perintah_evaluasi = [
+        sys.executable,
+        "-m",
+        "src.common.evaluate",
+        "--nim", NIM,
+        "--model", "trf",
+        "--seed", str(args.seed),
+        "--pred-val", str(path_val),
+        "--durasi", str(durasi),
+        "--perangkat", "cpu laptop" if args.perangkat == "cpu" else "cuda",
+    ]
+
+    if args.final and pred_test is not None:
+        perintah_evaluasi.extend(["--pred-test", str(path_test)])
+
+    print("\nMenjalankan evaluator resmi...", flush=True)
+    subprocess.run(perintah_evaluasi, check=True)
+    print("Evaluasi Transformer selesai.")
+
     print(f"\nDurasi: {durasi:.2f} detik")
-    print("\nTraining Transformer selesai.")
-    print(
-        "Catatan: evaluator resmi belum dijalankan; "
-        "hasil ini belum merupakan evaluasi akhir."
-    )
+    print("\nTraining dan evaluasi resmi Transformer selesai.")
+    print("Metrik validasi tersimpan di results/123450110/metrics.json")
 
 
 if __name__ == "__main__":
