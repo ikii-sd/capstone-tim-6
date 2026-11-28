@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "jenis": "Validasi lokal Autoencoder",
+  "waktu_wib": "2026-11-28T21:15:07.909736+07:00",
+  "model": "ae",
+  "sesi": "sesi-20261113-200606",
+  "manifest_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "computed_evaluator_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "metrics_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
+  "parameter_hash": "split:2026",
+  "csv_sesi_sesuai_manifest": true,
+  "metrics_sha256": "f5a1b2d04c62b5215716b6235109afc8ab11f860016e63078d4b1201daf208ef",
+  "pred_sha256": "a12ba29958d81b1b9805ff7896e2113add1d65c15fdbd5f03d02ab4d061554d7",
+  "metrik_tersimpan": {
+    "val_acc": 0.738426,
+    "val_macro_f1": 0.775304,
+    "val_mae": 0.261574
+  },
+  "metrik_hitung_ulang": {
+    "val_acc": 0.738426,
+    "val_macro_f1": 0.775304,
+    "val_mae": 0.261574
+  },
+  "n_val": 432,
+  "n_test": 0,
+  "kelas_prediksi": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "ulangan_latih": [
+    3,
+    8,
+    11,
+    5,
+    12,
+    6,
+    4
+  ],
+  "ulangan_validasi": [
+    1
+  ],
+  "ulangan_uji": [
+    7,
+    2,
+    10,
+    9
+  ],
+  "kebocoran_ulangan": false
+}

@@ -1,7 +1,8 @@
 {
   "metrik": {
     "val_acc": 0.738426,
-    "val_macro_f1": 0.775304
+    "val_macro_f1": 0.775304,
+    "val_mae": 0.261574
   },
   "seed": 1,
   "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
