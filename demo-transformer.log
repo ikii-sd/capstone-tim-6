@@ -1,0 +1,39 @@
+$ C:\Python313\python.exe C:\Users\Asus_TUF\OneDrive\Attachments\Documents\capstone-tim-6\models\123450110\run.py --seed 1
+catatan: 763 sampel (47.7 ms dari 5760 detik) diisi interpolasi pada batas potongan WAV.
+=======================================================
+CAPSTONE TIM 6 - TRANSFORMER
+=======================================================
+NIM       : 123450110
+Seed      : 1
+Fold      : 0
+Final     : False
+Perangkat : cpu
+
+Memuat dataset asli...
+Fold     : 0
+Training : (3024, 64, 101) | (3024,)
+Validasi : (432, 64, 101) | (432,)
+Pengujian: (1728, 64, 101) | (1728,)
+
+Memulai training Transformer pada cpu...
+Epoch 1/2 - Loss: 0.3423
+Epoch 2/2 - Loss: 0.0446
+
+Prediksi validasi disimpan: results\123450110\fold_0\pred_val.npy (432,)
+Model disimpan: results\123450110\fold_0\model_transformer.pt
+
+Durasi: 37.33 detik
+
+Training Transformer selesai.
+Catatan: evaluator resmi belum dijalankan; hasil ini belum merupakan evaluasi akhir.
+Traceback (most recent call last):
+  File "C:\Users\Asus_TUF\OneDrive\Attachments\Documents\capstone-tim-6\run_all.py", line 64, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Asus_TUF\OneDrive\Attachments\Documents\capstone-tim-6\run_all.py", line 60, in main
+    print("tabel komparasi \u2192", out.relative_to(AKAR))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 16: character maps to <undefined>

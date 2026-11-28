@@ -57,7 +57,7 @@ def main() -> None:
     (AKAR / "reports").mkdir(exist_ok=True)
     out = AKAR / "reports" / "hasil_komparasi.md"
     out.write_text("# Hasil komparasi (dibangkitkan run_all.py)\n\n" + "\n".join(baris) + "\n", encoding="utf-8")
-    print("tabel komparasi →", out.relative_to(AKAR))
+    print("tabel komparasi ->", out.relative_to(AKAR))
 
 
 if __name__ == "__main__":
