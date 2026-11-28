@@ -4,10 +4,10 @@
     "val_macro_f1": 0.998439
   },
   "seed": 3,
-  "data_hash": "c52baed61837192bf56ffc47d2b70a88",
+  "data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
   "perangkat": "cpu laptop",
   "model": "cnn",
   "n_val": 432,
   "n_test": 0,
-  "durasi_detik": 271.5
+  "durasi_detik": 299.3
 }
