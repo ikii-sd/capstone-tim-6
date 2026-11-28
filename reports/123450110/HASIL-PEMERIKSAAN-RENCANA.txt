@@ -1,0 +1,11 @@
+=== PEMERIKSAAN RENCANA MEJA TIM 6 ===
+File rencana       : rencana\t06-hitung-alat-suara.yaml
+Jumlah kombinasi   : 24
+Jumlah ulangan     : 12
+Total kondisi      : 288
+Durasi per kondisi : 20 detik
+Jeda               : 2 detik
+Estimasi waktu     : 6336 detik
+                     = 105.60 menit
+Status pemeriksaan : PASS
+Catatan: Ini validasi konfigurasi, bukan eksekusi meja.py.
