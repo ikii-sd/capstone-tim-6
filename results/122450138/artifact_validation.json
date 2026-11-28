@@ -1,8 +1,8 @@
 {
   "status": "PASS",
   "jenis": "validasi lokal memakai evaluator resmi; bukan status Local Runner",
-  "waktu_wib": "2026-11-26T09:20:40.355405+07:00",
-  "head_saat_validasi": "503ae980eebecaed048072bb32e1bfacfef51570",
+  "waktu_wib": "2026-11-28T16:21:13.366509+07:00",
+  "head_saat_validasi": "300114d7a899eb3d06d7448c004e7db3fa3cfe42",
   "manifest_sha256": "26327e64cbfe933a1e18de7779568b62b3f595ce6527e4ea53c1924931b79745",
   "manifest_data_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
   "computed_evaluator_hash": "ffcb1966eec8bf6b285607a0e19e97c0",
